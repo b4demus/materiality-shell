@@ -221,14 +221,31 @@ Item {
                             "clover", "diamond", "burst", "pill", "pentagon",
                             "flower", "triangle", "circle", "square"
                         ]
+                        readonly property int slots: 12
+                        readonly property int filled: Math.min(pwInput.text.length, slots)
 
+                        // Fixed-size model on purpose. Assigning a new number to
+                        // `model` swaps the whole delegate model out, so every
+                        // shape would be rebuilt — and re-animated — on each
+                        // keystroke. With a constant count the delegates are
+                        // built once and only the slot that just lit up plays.
                         Repeater {
-                            model: Math.min(pwInput.text.length, 12)
+                            model: shapesRow.slots
                             delegate: Item {
                                 id: cell
                                 required property int index
+                                readonly property bool shown: index < shapesRow.filled
+
+                                visible: shown          // Row skips hidden children
                                 width: 18
                                 height: 18
+
+                                onShownChanged: if (shown) {
+                                    glyph.scale = 0
+                                    glyph.opacity = 0
+                                    glyph.color = Colors.primary
+                                    appear.restart()
+                                }
 
                                 MShape {
                                     id: glyph
@@ -241,8 +258,6 @@ Item {
                                     color: Colors.primary
                                     scale: 0
                                     opacity: 0
-
-                                    Component.onCompleted: appear.start()
 
                                     ParallelAnimation {
                                         id: appear
