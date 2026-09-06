@@ -182,10 +182,10 @@ paste. `niri validate` is run on every write.
 The installer sets **fish** as your login shell and drops a config in
 `~/.config/fish/` that matches the desktop:
 
-* **Two-line prompt** — `path  ⎇git` then `<kaomoji> HH:MM:SS ❯`. Arrow and
-  kaomoji go green on success, red on failure; the path colour is the live
-  `primary` from the Material You palette.
-* **Right prompt** — `⏱ <last cmd duration>` (when > 1.5 s) · `⧗ <session uptime>`.
+* **Two-line prompt** — `path  ⎇git` then `<kaomoji> [⏱ <last cmd time>] ❯`.
+  The kaomoji and `❯` take the live `primary` accent from the Material You
+  palette on success, red on failure; the `⏱ <duration>` chip (yellow) only
+  shows when the last command ran longer than 1.5 s. No right prompt.
 * **`fish_greeting`** off; a random kaomoji + date/host instead.
 * **Long-command notifier** — `notify-send` with a kaomoji when a command runs
   longer than 45 s, so it shows up as one of the shell's own notification cards.

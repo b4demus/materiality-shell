@@ -56,7 +56,8 @@ FDIR="$XDG_CONFIG_HOME/fish"
 if [ -f "$FDIR/config.fish" ] && head -1 "$FDIR/config.fish" | grep -q 'expressive.*fish shell config'; then
   if ask "remove the Materiality fish config (~/.config/fish) ?"; then
     rm -f "$FDIR/config.fish" "$FDIR/conf.d/00-expressive-colors.fish" \
-          "$FDIR"/functions/__e_*.fish "$FDIR"/functions/fish_prompt.fish "$FDIR"/functions/fish_right_prompt.fish
+          "$FDIR"/functions/__e_*.fish "$FDIR"/functions/fish_prompt.fish \
+          "$FDIR"/functions/fish_right_prompt.fish
     echo "   ${G}removed${R}"
   fi
 fi

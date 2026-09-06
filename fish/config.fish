@@ -4,9 +4,6 @@ status is-interactive; or exit 0
 # no greeting banner
 set -g fish_greeting
 
-# per-shell session clock (used by the right prompt)
-set -q __e_session_start; or set -g __e_session_start (date +%s)
-
 # eagerly load the long-command notifier so its fish_postexec handler is bound
 functions -q __e_notify
 
