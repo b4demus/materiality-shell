@@ -967,6 +967,18 @@ def apply(colors: dict, label: str, scheme_name: str | None) -> None:
 
 
 # --------------------------------------------------------------------------- #
+def current_accent() -> str:
+    """`appearance.accent` from the store, the shell's own default otherwise.
+    Used as the seed before a wallpaper has ever been picked."""
+    try:
+        v = (json.loads(SETTINGS_JSON.read_text()).get("appearance") or {}).get("accent")
+        if isinstance(v, str) and re.fullmatch(r"#?[0-9a-fA-F]{6}", v.strip()):
+            return "#" + v.strip().lstrip("#").lower()
+    except (OSError, json.JSONDecodeError, AttributeError):
+        pass
+    return "#d0bcff"
+
+
 def current_dark() -> bool:
     """The shell's light/dark choice, resolved for the external app configs.
     `appearance.mode` is dark | light | system; `system` follows the desktop
@@ -1039,7 +1051,9 @@ def main(argv: list[str]) -> int:
 
     if mode == "dynamic":
         if not img:
-            log("dynamic: no wallpaper set — nothing to generate")
+            seed = current_accent()
+            log(f"dynamic: no wallpaper yet — seeding from the accent {seed}")
+            apply(accent_variants(seed), f"accent {seed}", None)
             return 0
         apply(dynamic_variants(img), "dynamic", None)
         return 0

@@ -146,6 +146,18 @@ if [ "$DO_FONTS" = 1 ]; then
   "$REPO_DIR/install.sh" --no-packages -y >/dev/null 2>&1 && ok "done" || warn "font/cursor step reported problems — run ./install.sh by hand"
 fi
 
+# ---- 4b. re-apply the palette ----------------------------------------------
+# The theme engine and its scheme files ship with the shell, so an update can
+# change how the palette is generated. Cheap and idempotent.
+if [ -x "$SHELL_DST/scripts/expressive-theme" ]; then
+  say "Palette"
+  if "$SHELL_DST/scripts/expressive-theme" >/dev/null 2>&1; then
+    ok "regenerated from your current wallpaper / scheme"
+  else
+    warn "expressive-theme failed — run it by hand to see why"
+  fi
+fi
+
 # ---- 5. reload --------------------------------------------------------------
 say "Reload"
 if pgrep -f "qs -c $CONF_ID" >/dev/null 2>&1; then

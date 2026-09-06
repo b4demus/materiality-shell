@@ -44,6 +44,8 @@ JBMONO_VER="2.304"
 
 # ---- options -----------------------------------------------------------
 DO_PACKAGES=1 DO_FONTS=1 DO_CURSOR=1 DO_NIRI=0 DO_SHELL=1 ASSUME_YES=0
+# how setup_fish actually ended up, so the summary can tell the truth
+FISH_LOGIN="not attempted"
 
 # ---- pretty output ---------------------------------------------------------
 if [ -t 1 ]; then
@@ -299,6 +301,7 @@ setup_fish() {
   fi
 
   if [ "$DO_SHELL" = 0 ]; then
+    FISH_LOGIN="skipped (--no-shell)"
     info "login shell left as $(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7 || echo "${SHELL:-/bin/sh}")  (--no-shell)"
     info "run later:  chsh -s $fishbin"
     return
@@ -306,14 +309,21 @@ setup_fish() {
 
   local cur; cur="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7)"
   if [ "$cur" = "$fishbin" ]; then
+    FISH_LOGIN="yes"
     ok "login shell already $fishbin"
   elif ask "make fish your login shell now? (chsh will ask for your password)"; then
-    if chsh -s "$fishbin" 2>/dev/null || { [ -n "$SUDO" ] && $SUDO chsh -s "$fishbin" "$(id -un)" 2>/dev/null; }; then
-      ok "login shell → $fishbin   (new terminals / next login)"
+    # stderr stays open on purpose — that is where chsh/PAM writes the password
+    # prompt, and swallowing it makes the installer look like it hung.
+    if chsh -s "$fishbin" || { [ -n "$SUDO" ] && $SUDO chsh -s "$fishbin" "$(id -un)"; }; then
+      FISH_LOGIN="yes"
+      ok "login shell → $fishbin   (takes effect on your next login)"
     else
+      FISH_LOGIN="chsh failed"
       warn "chsh didn't go through — run it yourself:  chsh -s $fishbin"
+      info "the terminal still opens fish either way (see Alacritty below)"
     fi
   else
+    FISH_LOGIN="declined"
     info "skipped; run 'chsh -s $fishbin' whenever you want it"
   fi
 }
@@ -403,6 +413,43 @@ EOF
   ok "set as default cursor (size $CURSOR_SIZE)"
 }
 
+seed_alacritty() {
+  say "Alacritty"
+  local a="$XDG_CONFIG_HOME/alacritty/alacritty.toml"
+  mkdir -p "$(dirname "$a")"
+  if [ -e "$a" ]; then
+    info "you already have an alacritty.toml — the palette is merged into it"
+    return
+  fi
+  cat > "$a" <<EOF
+# Base config from the Materiality installer. expressive-theme keeps a
+# marker-delimited block at the end of this file in sync with the palette
+# (colours, JetBrains Mono); everything above it is yours to edit.
+
+[window]
+decorations = "None"
+
+[terminal]
+# fish when it is installed, bash otherwise — so the terminal is fish even
+# before \`chsh\` takes effect on the next login
+shell = { program = "$BIN_DIR/expressive-shell", args = [] }
+EOF
+  ok "base config written (fish, no titlebar)"
+}
+
+apply_theme() {
+  say "Palette"
+  local t="$SHELL_DST/scripts/expressive-theme"
+  [ -x "$t" ] || { warn "expressive-theme is missing — nothing themed"; return; }
+  # No wallpaper yet on a fresh install, so this seeds from the default accent;
+  # picking a wallpaper later regenerates everything from it.
+  if "$t" >/dev/null 2>&1; then
+    ok "shell, Alacritty, GTK 3/4, Qt/KDE and the niri focus ring all coloured"
+  else
+    warn "expressive-theme failed — run it by hand to see why: expressive-theme"
+  fi
+}
+
 setup_niri() {
   say "niri config"
   local dst="$XDG_CONFIG_HOME/niri/config.kdl"
@@ -440,8 +487,9 @@ summary() {
    Open settings:   ${B}expressive-settings${RST}   (or Mod+Ctrl+,)
    Pick a wallpaper there — it seeds the whole Material You palette.
 
-   Fish is now your login shell (kaomoji prompt, clock, cmd/session timers,
-   palette-aware colours) — open a new terminal to see it.
+   Fish (kaomoji prompt, clock, cmd/session timers, palette-aware colours):
+   login shell = ${FISH_LOGIN}. Either way Alacritty opens fish, so a new
+   terminal shows it right away.
 
    Missing something? Re-run this script; it's idempotent.
    Remove everything:   ${B}./uninstall.sh${RST}
@@ -465,7 +513,9 @@ main() {
   install_fonts
   install_cursor
   setup_fish
+  seed_alacritty
   setup_niri
+  apply_theme
   summary
 }
 main
