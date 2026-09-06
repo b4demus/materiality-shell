@@ -135,9 +135,14 @@ PanelWindow {
                 Rectangle {
                     id: header
                     width: parent.width
-                    height: headerRow.implicitHeight + Appearance.space.s * 2
+                    // fixed — the art is always 56, so this never has to wait on
+                    // the row's own implicit size (a NaN there once hid the art)
+                    height: 56 + Appearance.space.s * 2
                     radius: Appearance.radius.m
                     color: "transparent"
+
+                    readonly property int artSize: 56
+                    readonly property int eqSize: 24
 
                     Row {
                         id: headerRow
@@ -150,7 +155,7 @@ PanelWindow {
 
                         Rectangle {
                             id: art
-                            width: 56; height: 56
+                            width: header.artSize; height: header.artSize
                             radius: Appearance.radius.m
                             color: Colors.surfaceContainerHighest
                             clip: true
@@ -180,7 +185,8 @@ PanelWindow {
 
                         Column {
                             anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width - 56 - eq.width - Appearance.space.m * 2
+                            width: Math.max(0, headerRow.width - header.artSize
+                                            - header.eqSize - Appearance.space.m * 2)
                             spacing: 2
 
                             Text {
@@ -207,6 +213,7 @@ PanelWindow {
                         MEqualizer {
                             id: eq
                             anchors.verticalCenter: parent.verticalCenter
+                            width: header.eqSize
                             active: root.isPlaying
                             barColor: Colors.primary
                             bars: 5
