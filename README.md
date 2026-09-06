@@ -8,6 +8,17 @@ your wallpaper, spring motion, pill shapes.
 
 *vibed by b4demus*
 
+|  |  |
+|--|--|
+| ![Control center](screenshots/1-control-center.png) | ![App launcher](screenshots/2-launcher.png) |
+| Control center — toggles, sliders, notification history | App launcher — reads your real `.desktop` files |
+| ![Settings · Theme & colour](screenshots/3-settings-theme.png) | ![Timer](screenshots/4-timer.png) |
+| The settings app configures the shell *and* niri | Alarm / timer with a set-any-duration picker |
+
+Every shot is a different wallpaper — the whole palette is regenerated from it
+by [matugen](https://github.com/InioX/matugen) (warm gold, rose, lavender, cyan
+above).
+
 ```sh
 git clone https://github.com/b4demus/materiality-shell.git
 cd materiality-shell
