@@ -21,8 +21,9 @@ PanelWindow {
 
     property date view: new Date()
     property date now: new Date()
+    property var sel: null   // { y, m, d } — the tapped day, outlined
 
-    onVisibleChanged: if (visible) { view = new Date(); now = new Date() }
+    onVisibleChanged: if (visible) { view = new Date(); now = new Date(); sel = null }
 
     Timer {
         running: root.visible
@@ -146,6 +147,7 @@ PanelWindow {
                     Repeater {
                         model: root.cells
                         delegate: Item {
+                            id: cell
                             required property var modelData
                             width: col.width / 7
                             height: col.width / 7
@@ -154,24 +156,54 @@ PanelWindow {
                                 && root.vYear === root.now.getFullYear()
                                 && root.vMonth === root.now.getMonth()
                                 && modelData === root.now.getDate()
+                            readonly property bool isSel: modelData > 0 && root.sel
+                                && root.sel.y === root.vYear
+                                && root.sel.m === root.vMonth
+                                && root.sel.d === modelData
 
+                            // hover wash
                             Rectangle {
                                 anchors.centerIn: parent
                                 width: Math.min(parent.width, parent.height) - 8
                                 height: width
                                 radius: width / 2
-                                color: parent.isToday ? Colors.primary : "transparent"
+                                visible: !cell.isToday && dayMa.containsMouse
+                                color: Colors.on.surface
+                                opacity: Appearance.stateHover
+                            }
+                            // today fill / selected outline
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: Math.min(parent.width, parent.height) - 8
+                                height: width
+                                radius: width / 2
+                                color: cell.isToday ? Colors.primary : "transparent"
+                                border.width: (cell.isSel && !cell.isToday) ? 1.5 : 0
+                                border.color: Colors.primary
+                                Behavior on border.width { NumberAnimation { duration: Motion.durShort } }
                             }
                             Text {
                                 anchors.centerIn: parent
                                 visible: modelData > 0
                                 text: modelData > 0 ? modelData : ""
-                                color: parent.isToday ? Colors.on.primary : Colors.on.surface
+                                color: cell.isToday ? Colors.on.primary
+                                       : cell.isSel ? Colors.primary : Colors.on.surface
                                 font.family: Appearance.clockFamily
                                 font.pixelSize: Appearance.font.labelMedium
-                                font.weight: parent.isToday
+                                font.weight: (cell.isToday || cell.isSel)
                                     ? Appearance.font.weightBold
                                     : Appearance.font.weightRegular
+                            }
+
+                            MouseArea {
+                                id: dayMa
+                                anchors.fill: parent
+                                enabled: modelData > 0
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.sel = cell.isSel
+                                    ? null
+                                    : ({ y: root.vYear, m: root.vMonth, d: cell.modelData })
                             }
                         }
                     }

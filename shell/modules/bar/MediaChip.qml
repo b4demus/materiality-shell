@@ -68,17 +68,50 @@ Row {
         onClicked: root.player && root.player.next()
     }
 
-    Text {
+    // Track name — its own hover/active state layer, like the clock halves.
+    // Click opens the media popup.
+    Item {
+        id: titleZone
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(implicitWidth, 200)
-        elide: Text.ElideRight
-        text: {
-            const a = root.player && root.player.trackArtist ? root.player.trackArtist : ""
-            return a ? a + " — " + root.title : root.title
+        width: Math.min(titleLabel.implicitWidth + Appearance.space.s * 2, 208)
+        height: 24
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Appearance.radius.full
+            color: Bus.mediaPopupOpen ? Colors.primary : Colors.barOnSurface
+            opacity: Bus.mediaPopupOpen ? 0.16
+                     : titleMa.pressed ? Appearance.statePress
+                     : titleMa.containsMouse ? Appearance.stateHover : 0
+            Behavior on opacity { NumberAnimation { duration: Motion.durShort } }
+            Behavior on color { ColorAnimation { duration: Motion.durShort } }
         }
-        color: Colors.barOnSurfaceVariant
-        font.family: Appearance.fontFamily
-        font.pixelSize: Appearance.font.labelMedium
-        font.weight: Appearance.font.weightMedium
+
+        Text {
+            id: titleLabel
+            anchors.centerIn: parent
+            width: parent.width - Appearance.space.s * 2
+            elide: Text.ElideRight
+            text: {
+                const a = root.player && root.player.trackArtist ? root.player.trackArtist : ""
+                return a ? a + " — " + root.title : root.title
+            }
+            color: Colors.barOnSurfaceVariant
+            font.family: Appearance.fontFamily
+            font.pixelSize: Appearance.font.labelMedium
+            font.weight: Appearance.font.weightMedium
+        }
+
+        MouseArea {
+            id: titleMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                Bus.timePopupOpen = false
+                Bus.calendarOpen = false
+                Bus.mediaPopupOpen = !Bus.mediaPopupOpen
+            }
+        }
     }
 }

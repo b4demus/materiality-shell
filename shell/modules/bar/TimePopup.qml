@@ -24,6 +24,45 @@ PanelWindow {
     property int draftM: 0
 
     function pad(n) { return ("0" + n).slice(-2) }
+
+    // A vertical ▲ / value / ▼ spinner, shared by the alarm and the timer.
+    component Spin: Column {
+        id: spin
+        property int value: 0
+        property string unit: ""
+        property bool canEdit: true
+        signal step(int d)         // +1 / -1
+
+        spacing: Appearance.space.xs
+
+        MButton {
+            anchors.horizontalCenter: parent.horizontalCenter
+            icon: "keyboard_arrow_up"; iconSize: 20
+            enabled: spin.canEdit
+            onClicked: spin.step(1)
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: ("0" + spin.value).slice(-2)
+            color: spin.canEdit ? Colors.on.surface : Colors.on.surfaceVariant
+            font.family: Appearance.clockFamily
+            font.pixelSize: Appearance.font.headlineSmall
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: spin.unit !== ""
+            text: spin.unit
+            color: Colors.on.surfaceVariant
+            font.family: Appearance.fontFamily
+            font.pixelSize: Appearance.font.labelSmall
+        }
+        MButton {
+            anchors.horizontalCenter: parent.horizontalCenter
+            icon: "keyboard_arrow_down"; iconSize: 20
+            enabled: spin.canEdit
+            onClicked: spin.step(-1)
+        }
+    }
     function fmtDur(s) {
         s = Math.max(0, Math.floor(s))
         const h = Math.floor(s / 3600)
@@ -146,44 +185,42 @@ PanelWindow {
                         value: TimeTools.timerProgress
                     }
 
-                    // fine adjust — minutes and seconds
+                    // exact duration — set any hours / minutes / seconds
                     Row {
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: Appearance.space.s
-                        opacity: TimeTools.timerRunning ? 0.4 : 1
 
-                        Repeater {
-                            model: [
-                                { t: "-1m",  d: -60 },
-                                { t: "-10s", d: -10 },
-                                { t: "+10s", d: 10 },
-                                { t: "+1m",  d: 60 }
-                            ]
-                            delegate: Rectangle {
-                                required property var modelData
-                                height: 30
-                                width: adjLabel.implicitWidth + Appearance.space.m
-                                radius: Appearance.radius.full
-                                color: Colors.surfaceContainerHighest
-                                border.width: 1
-                                border.color: Colors.outlineVariant
-
-                                Text {
-                                    id: adjLabel
-                                    anchors.centerIn: parent
-                                    text: modelData.t
-                                    color: Colors.on.surfaceVariant
-                                    font.family: Appearance.fontFamily
-                                    font.pixelSize: Appearance.font.labelMedium
-                                    font.weight: Appearance.font.weightMedium
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    enabled: !TimeTools.timerRunning
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: TimeTools.timerBump(modelData.d)
-                                }
-                            }
+                        Spin {
+                            value: Math.floor(TimeTools.timerDuration / 3600)
+                            unit: "hrs"
+                            canEdit: !TimeTools.timerRunning
+                            onStep: d => TimeTools.timerSetDuration(TimeTools.timerDuration + d * 3600)
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: ":"
+                            color: Colors.on.surfaceVariant
+                            font.family: Appearance.clockFamily
+                            font.pixelSize: Appearance.font.headlineSmall
+                        }
+                        Spin {
+                            value: Math.floor((TimeTools.timerDuration % 3600) / 60)
+                            unit: "min"
+                            canEdit: !TimeTools.timerRunning
+                            onStep: d => TimeTools.timerSetDuration(TimeTools.timerDuration + d * 60)
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: ":"
+                            color: Colors.on.surfaceVariant
+                            font.family: Appearance.clockFamily
+                            font.pixelSize: Appearance.font.headlineSmall
+                        }
+                        Spin {
+                            value: TimeTools.timerDuration % 60
+                            unit: "sec"
+                            canEdit: !TimeTools.timerRunning
+                            onStep: d => TimeTools.timerSetDuration(TimeTools.timerDuration + d)
                         }
                     }
 
@@ -253,25 +290,10 @@ PanelWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: Appearance.space.m
 
-                        Column {
-                            spacing: Appearance.space.xs
-                            MButton {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                icon: "keyboard_arrow_up"; iconSize: 20
-                                onClicked: root.draftH = (root.draftH + 1) % 24
-                            }
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: root.pad(root.draftH)
-                                color: Colors.on.surface
-                                font.family: Appearance.clockFamily
-                                font.pixelSize: Appearance.font.headlineSmall
-                            }
-                            MButton {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                icon: "keyboard_arrow_down"; iconSize: 20
-                                onClicked: root.draftH = (root.draftH + 23) % 24
-                            }
+                        Spin {
+                            value: root.draftH
+                            unit: "hrs"
+                            onStep: d => root.draftH = (root.draftH + d + 24) % 24
                         }
 
                         Text {
@@ -282,25 +304,10 @@ PanelWindow {
                             font.pixelSize: Appearance.font.headlineSmall
                         }
 
-                        Column {
-                            spacing: Appearance.space.xs
-                            MButton {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                icon: "keyboard_arrow_up"; iconSize: 20
-                                onClicked: root.draftM = (root.draftM + 5) % 60
-                            }
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: root.pad(root.draftM)
-                                color: Colors.on.surface
-                                font.family: Appearance.clockFamily
-                                font.pixelSize: Appearance.font.headlineSmall
-                            }
-                            MButton {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                icon: "keyboard_arrow_down"; iconSize: 20
-                                onClicked: root.draftM = (root.draftM + 55) % 60
-                            }
+                        Spin {
+                            value: root.draftM
+                            unit: "min"
+                            onStep: d => root.draftM = (root.draftM + d + 60) % 60
                         }
 
                         MButton {
