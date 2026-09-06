@@ -64,6 +64,7 @@ Materiality — cross-distro installer
     --no-cursor     skip downloading the Bibata cursor
     --niri          also install niri/config.kdl (backs up any existing one)
     -y, --yes       assume "yes" to every prompt
+    --update        run update.sh instead (pull + redeploy)
     --uninstall     run uninstall.sh instead
     -h, --help      this text
 
@@ -87,6 +88,7 @@ while [ $# -gt 0 ]; do
     --no-cursor)   DO_CURSOR=0 ;;
     --niri)        DO_NIRI=1 ;;
     -y|--yes)      ASSUME_YES=1 ;;
+    --update)      shift; exec "$REPO_DIR/update.sh" "$@" ;;
     --uninstall)   exec "$REPO_DIR/uninstall.sh" ;;
     -h|--help)     usage; exit 0 ;;
     *) die "unknown option: $1 (try --help)" ;;

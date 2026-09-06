@@ -168,24 +168,46 @@ paste. `niri validate` is run on every write.
 
 ---
 
-## Updating
+## Updating an installed copy
+
+From the same clone you installed from:
 
 ```sh
 cd materiality-shell
-git pull
-./install.sh          # re-copies the shell, keeps your state
+./update.sh
 ```
 
-Or, since the scripts are symlinked, `git pull` alone updates them; run
-`qs -c expressive ipc call settings close && pkill -f 'qs -c expressive' && qs -c expressive &`
-(or just relogin) to pick up QML changes.
+It `git pull`s, re-deploys `shell/` into `~/.config/quickshell/expressive/`
+**in place**, refreshes the `~/.local/bin/expressive-*` symlinks (adding new
+scripts, dropping removed ones) and nudges the running shell to hot-reload.
+Your settings, palette, wallpaper catalogue and niri config are never
+touched — they live in `~/.local/state/expressive/` and `~/.config/niri/`.
+
+| Flag | |
+|---|---|
+| `--restart` | full `qs kill` + relaunch instead of hot-reload. Use it when an update changes a **keybind or adds an IPC handler** — Quickshell's hot-reload doesn't pick those up. |
+| `--no-pull` | deploy the current checkout without fetching. |
+| `--fonts` | also re-run the font + cursor step. |
+
+Lost the clone, or installed by hand? Re-clone and run `./install.sh` again —
+it's idempotent and detects the previous install (no `.bak` churn):
+
+```sh
+git clone https://github.com/b4demus/materiality-shell.git
+cd materiality-shell && ./install.sh --no-packages
+```
+
+Doing it fully manually is just: `cp -a shell/. ~/.config/quickshell/expressive/`
+then `touch ~/.config/quickshell/expressive/shell.qml` (or relogin).
 
 ---
 
 ## Layout of this repo
 
 ```
-install.sh · uninstall.sh     the cross-distro (un)installer
+install.sh                     the cross-distro installer
+update.sh                      pull + redeploy an installed copy
+uninstall.sh                   remove it (--purge also drops state)
 shell/                         the Quickshell config → ~/.config/quickshell/expressive/
   shell.qml  config/  components/  services/  modules/  theme/  scripts/
 niri/config.kdl                a complete example niri config with Materiality wired in
