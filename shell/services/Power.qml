@@ -20,13 +20,15 @@ Singleton {
     readonly property UPowerDevice dev: UPower.displayDevice
     readonly property bool hasBattery: dev && dev.isPresent
                                        && dev.type === UPowerDeviceType.Battery
-    readonly property real percent: dev ? dev.percentage : 0
+    // Quickshell gives UPower percentages as 0.0–1.0 fractions; scale to 0–100
+    // so the thresholds below and the Power page read right.
+    readonly property real percent: dev ? dev.percentage * 100 : 0
     readonly property bool onBattery: UPower.onBattery
     readonly property bool charging: dev && (dev.state === UPowerDeviceState.Charging
                                              || dev.state === UPowerDeviceState.PendingCharge)
     readonly property real timeToEmpty: dev ? dev.timeToEmpty : 0
     readonly property real timeToFull: dev ? dev.timeToFull : 0
-    readonly property real health: dev ? dev.healthPercentage : 0
+    readonly property real health: dev ? dev.healthPercentage * 100 : 0
 
     function humanTime(seconds) {
         if (!seconds || seconds <= 0) return ""

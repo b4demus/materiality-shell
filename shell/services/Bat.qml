@@ -11,7 +11,9 @@ Singleton {
     readonly property bool present: dev && dev.isPresent
                                     && dev.type === UPowerDeviceType.Battery
                                     && dev.percentage > 0
-    readonly property real percent: dev ? dev.percentage : 0
+    // Quickshell reports UPower percentage as a 0.0–1.0 fraction; the shell
+    // works in 0–100 everywhere (labels, thresholds, icon steps).
+    readonly property real percent: dev ? dev.percentage * 100 : 0
     readonly property int state: dev ? dev.state : UPowerDeviceState.Unknown
     readonly property bool charging: state === UPowerDeviceState.Charging
                                      || state === UPowerDeviceState.PendingCharge
