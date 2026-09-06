@@ -89,7 +89,7 @@ handles them per-distro:
 
 | Distro | Quickshell | niri | matugen |
 |---|---|---|---|
-| **Arch** | AUR (`paru -S quickshell`) | `pacman -S niri` | AUR (`matugen-bin`) |
+| **Arch** | `pacman -S quickshell` | `pacman -S niri` | `pacman -S matugen` |
 | **Fedora** | COPR `errornointernet/quickshell` | COPR `yalter/niri` | `cargo install matugen` |
 | **openSUSE TW** | OBS repo (manual) | `zypper in niri` | `cargo install matugen` |
 | **Debian 13+ / Ubuntu 24.10+** | build from [source][qs-install] | `apt install niri` | prebuilt binary / `cargo` |
@@ -98,6 +98,13 @@ handles them per-distro:
 
 If a package step fails the installer says so and keeps going — you can install
 that one piece by hand and re-run `./install.sh`.
+
+**Arch needs no AUR.** Every dependency — quickshell and matugen included — is
+in `[core]` or `[extra]`, so the whole install is plain `pacman -S` and no
+third-party PKGBUILD is ever built. The installer only reaches for `paru`/`yay`
+if `pacman` reports a package missing (a derivative with lagging mirrors), and
+it says so out loud before it does. `pacman -Syu` first and that branch never
+runs.
 
 ---
 

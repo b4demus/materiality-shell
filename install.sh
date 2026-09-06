@@ -142,6 +142,11 @@ pkg_list() {
   esac
 }
 
+# On Arch every dependency — quickshell and matugen included — is in [core] or
+# [extra], so a plain `pacman -S` covers the whole install and the AUR is never
+# touched. These helpers exist only as a fallback for derivatives whose mirrors
+# lag behind Arch proper; the AUR is unreviewed third-party build scripts, so
+# the fallback always announces itself rather than building something quietly.
 AUR=''
 detect_aur() { for h in paru yay; do command -v "$h" >/dev/null 2>&1 && { AUR=$h; return; }; done; }
 
@@ -172,9 +177,17 @@ install_quickshell() {
   [ "$DO_PACKAGES" = 0 ] && { warn "not installed and --no-packages set — see https://quickshell.outfoxxed.me/docs/"; return; }
   case "$PM" in
     pacman)
-      detect_aur
-      if [ -n "$AUR" ]; then $AUR -S --needed --noconfirm quickshell || warn "AUR build failed"
-      else warn "install an AUR helper (paru/yay) then: paru -S quickshell"; fi ;;
+      # in [extra] since 0.3.1 — no AUR helper required
+      if $PM_INSTALL quickshell; then :
+      else
+        detect_aur
+        if [ -n "$AUR" ]; then
+          warn "not in your repos (mirrors behind?) — falling back to the AUR; read the PKGBUILD before you accept it"
+          $AUR -S --needed --noconfirm quickshell || warn "AUR build failed"
+        else
+          warn "not in your repos. Sync first (pacman -Syu), or build it: https://quickshell.outfoxxed.me/docs/guide/install/"
+        fi
+      fi ;;
     dnf)
       $SUDO dnf copr enable -y errornointernet/quickshell && $SUDO dnf install -y quickshell || warn "COPR install failed" ;;
     zypper)
@@ -207,8 +220,14 @@ install_matugen() {
   if command -v matugen >/dev/null 2>&1 || [ -x "$BIN_DIR/matugen" ]; then ok "already installed"; return; fi
   [ "$DO_PACKAGES" = 0 ] && { warn "not installed and --no-packages set — dynamic wallpaper colours will fall back to a plain palette."; return; }
   if [ "$PM" = pacman ]; then
-    detect_aur
-    [ -n "$AUR" ] && { $AUR -S --needed --noconfirm matugen-bin || $AUR -S --needed --noconfirm matugen || true; }
+    # in [extra] too — the AUR is only a fallback for lagging mirrors
+    $PM_INSTALL matugen || {
+      detect_aur
+      [ -n "$AUR" ] && {
+        warn "not in your repos — falling back to the AUR; read the PKGBUILD before you accept it"
+        $AUR -S --needed --noconfirm matugen-bin || $AUR -S --needed --noconfirm matugen || true
+      }
+    }
   fi
   if ! command -v matugen >/dev/null 2>&1; then
     if command -v cargo >/dev/null 2>&1; then
