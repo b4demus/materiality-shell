@@ -107,10 +107,28 @@ copy() {
     [ -n "$id" ] || { echo "usage: expressive-clip copy <id>" >&2; exit 2; }
     local f="$DIR/$id.entry"
     [ -f "$f" ] || { echo "no such entry: $id" >&2; exit 1; }
-    if [ "$(kind_of "$id")" = image ]; then
-        wl-copy --type image/png < "$f"
+
+    # wl-copy leaves a background daemon holding the selection. Whoever calls us
+    # (Quickshell's Process) SIGKILLs our entire process group the moment we
+    # exit, which takes that daemon down too — the clipboard ends up empty and
+    # nothing can be pasted. Run wl-copy in its own session so the group kill
+    # can't reach it. `setsid -f` always forks, so it works even when we're
+    # already a process-group leader.
+    local kind; kind=$(kind_of "$id")
+    if command -v setsid >/dev/null 2>&1; then
+        if [ "$kind" = image ]; then
+            setsid -f wl-copy --type image/png < "$f"
+        else
+            setsid -f wl-copy < "$f"
+        fi
     else
-        wl-copy < "$f"
+        # no setsid (very unusual on Linux) — background it and hope for the best
+        if [ "$kind" = image ]; then
+            wl-copy --type image/png < "$f" &
+        else
+            wl-copy < "$f" &
+        fi
+        disown 2>/dev/null || true
     fi
 }
 
