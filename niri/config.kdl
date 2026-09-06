@@ -8,9 +8,13 @@
 //
 // KDL format:  https://kdl.dev      niri wiki:  https://yalter.github.io/niri/
 
-// Qt apps read the GTK palette that the shell keeps in sync with Material You.
+// Qt apps read their whole palette out of the kdeglobals that expressive-theme
+// writes, so Material You reaches Qt as well as GTK — accents included.
+// `kde` here is Qt's own built-in QKdeTheme (no Plasma, no plugin); Qt only
+// enables it when KDE_SESSION_VERSION is set.
 environment {
-    QT_QPA_PLATFORMTHEME "gtk3"
+    QT_QPA_PLATFORMTHEME "kde"
+    KDE_SESSION_VERSION "6"
 }
 
 input {

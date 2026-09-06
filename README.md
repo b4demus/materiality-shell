@@ -164,7 +164,14 @@ window-rule { geometry-corner-radius 16; clip-to-geometry true; }
 // === /expressive:corner ===
 
 cursor { xcursor-theme "Bibata-Modern-Classic"; xcursor-size 24; }
-environment { QT_QPA_PLATFORMTHEME "gtk3"; }   // Qt follows the GTK/M3 palette
+
+// Qt reads its palette from the kdeglobals expressive-theme writes, so the
+// accent reaches Qt apps too. "kde" is Qt's own built-in QKdeTheme — no
+// Plasma, no plugin — and Qt only enables it when KDE_SESSION_VERSION is set.
+environment {
+    QT_QPA_PLATFORMTHEME "kde"
+    KDE_SESSION_VERSION "6"
+}
 ```
 
 The full working example is [`niri/config.kdl`](niri/config.kdl). If you already
@@ -187,6 +194,34 @@ paste. `niri validate` is run on every write.
 | `XF86Audio*` / `XF86MonBrightness*` | volume, mute, brightness (via `wpctl` / `brightnessctl`) |
 
 ---
+
+## Where the palette lands
+
+`expressive-theme` doesn't just colour the shell — it fans one Material You
+palette out to everything on the desktop:
+
+| Target | How |
+|---|---|
+| The shell | `~/.local/state/expressive/colors.json`, watched live |
+| niri | the `expressive:colors` block — focus ring follows the accent |
+| Alacritty | `~/.config/alacritty/theme.toml` (16 ANSI colours + a tinted foreground), live-reloaded |
+| GTK 3 / 4 | managed `@define-color` blocks in `gtk.css` — libadwaita and classic names |
+| **Qt / KDE** | `~/.config/kdeglobals` `[Colors:*]`, plus a `Expressive.colors` scheme |
+| fish | `conf.d/00-expressive-colors.fish` reads the same JSON via `jq` |
+
+Qt is the fiddly one. `QT_QPA_PLATFORMTHEME=kde` selects **QKdeTheme**, which
+is built into QtGui — it needs no Plasma and no extra plugin, and it is the only
+theme that builds the whole `QPalette` from a file we generate. Qt gates it
+behind `KDE_SESSION_VERSION`, so the niri `environment {}` block sets both.
+
+That matters because the alternative, `QT_QPA_PLATFORMTHEME=gtk3`, only maps a
+subset of roles: it leaves `QPalette::Link` at Qt's default blue and reports the
+headerbar colour as the window background. With the KDE path, Qt apps — KDE ones
+like Kate and plain Qt ones like PrismLauncher alike — get the exact accent,
+surfaces and link colour the rest of the desktop is using.
+
+Already-running Qt apps keep the palette they started with; restart them (or
+just launch new ones) after a scheme change.
 
 ## Shell (fish)
 

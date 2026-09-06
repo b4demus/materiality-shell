@@ -719,10 +719,11 @@ def _ini_set(path: Path, section: str, kv: dict) -> None:
 
 
 def write_qt(colors: dict, dark: bool) -> None:
-    """A qt5ct / qt6ct colour scheme + config, so Qt apps carry the same palette
-    as GTK. The live path is QT_QPA_PLATFORMTHEME=gtk3 (set in the niri env),
-    which reads the GTK colours directly; these files make the qt*ct platform
-    themes match too, for anyone who picks them instead."""
+    """A qt5ct / qt6ct colour scheme + config. The live path is
+    QT_QPA_PLATFORMTHEME=kde (set in the niri env), which builds the palette
+    from the kdeglobals write_kde() emits; these files are here so the palette
+    is already in place for anyone who installs qt5ct/qt6ct and points
+    QT_QPA_PLATFORMTHEME at one of those instead."""
     d = colors["dark" if dark else "light"]
     def c(k):
         return "#ff" + d[k].lstrip("#")
@@ -781,6 +782,20 @@ def mix_hex(a: str, b: str, t: float) -> str:
 def _rgb255(hex_c: str) -> str:
     r, g, b = (max(0, min(255, round(x * 255))) for x in hex2rgb(hex_c))
     return f"{r},{g},{b}"
+
+
+def _icon_theme() -> str:
+    """Whatever the desktop icon theme is set to; Adwaita if we can't tell."""
+    try:
+        out = subprocess.run(
+            ["gsettings", "get", "org.gnome.desktop.interface", "icon-theme"],
+            capture_output=True, text=True, timeout=3).stdout.strip()
+        name = out.strip().strip("'\"")
+        if name:
+            return name
+    except Exception:
+        pass
+    return "Adwaita"
 
 
 def write_kde(colors: dict, dark: bool) -> None:
@@ -848,6 +863,9 @@ def write_kde(colors: dict, dark: bool) -> None:
         "shadeSortColumn": "true",
     })
     _ini_set(kde_conf, "KDE", {"widgetStyle": "Fusion"})
+    # With QT_QPA_PLATFORMTHEME=kde the icon theme comes from here rather than
+    # from GTK settings, so mirror whatever the desktop is set to.
+    _ini_set(kde_conf, "Icons", {"Theme": _icon_theme()})
 
     # a stand-alone scheme file so the Colours KCM lists it too
     cs = HOME / ".local/share/color-schemes/Expressive.colors"
@@ -862,10 +880,16 @@ def write_kde(colors: dict, dark: bool) -> None:
 
 def write_env(dark: bool) -> None:
     """Persist the Qt platform-theme choice as a systemd user env, so it applies
-    on the next login even outside niri's own `environment {}` block."""
+    on the next login even outside niri's own `environment {}` block.
+
+    `kde` is Qt's own QKdeTheme, built into QtGui — no plugin, no Plasma. It is
+    the only theme that reads the whole palette out of a file we generate
+    (kdeglobals), which is what gets the accent into QPalette::Link and gives
+    Qt the exact surface colours instead of GTK-derived approximations.
+    Qt gates it behind KDE_SESSION_VERSION >= 4, so that has to be set too."""
     envd = _CFG / "environment.d" / "95-expressive.conf"
     envd.parent.mkdir(parents=True, exist_ok=True)
-    envd.write_text("QT_QPA_PLATFORMTHEME=gtk3\n")
+    envd.write_text("QT_QPA_PLATFORMTHEME=kde\nKDE_SESSION_VERSION=6\n")
 
 
 def write_gtk(colors: dict, dark: bool = True) -> None:
