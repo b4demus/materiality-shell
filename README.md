@@ -180,18 +180,114 @@ paste. `niri validate` is run on every write.
 
 ---
 
-## Keybinds (from the example config)
+## Keybinds
+
+Everything below ships in [`niri/config.kdl`](niri/config.kdl) — it is a plain
+niri config, so every line is yours to change. The settings app's **Shortcuts**
+page edits the same file in place (record a combination, type an app name), and
+`Mod+Shift+/` opens niri's own overlay listing whatever is currently bound.
+
+`Mod` is **Super** on a TTY session and **Alt** when niri runs windowed.
+
+### Launching
 
 | Key | Action |
 |---|---|
-| `Mod+Return` | terminal (alacritty) |
-| `Mod+Space` | app launcher |
-| `Mod+A` | control center / quick settings |
-| `Mod+I` · `Mod+Ctrl+,` | settings app |
-| `Super+Alt+L` | lock screen |
-| `Mod+Shift+S` · `Print` | region screenshot (lands in the clipboard chip) |
-| `Mod+Q` / `Mod+D` / `Mod+F` / `F11` | close / float / maximize / fullscreen |
-| `XF86Audio*` / `XF86MonBrightness*` | volume, mute, brightness (via `wpctl` / `brightnessctl`) |
+| `Mod+Return` | Terminal (`alacritty`) |
+| `Mod+Space` | App launcher — type to filter, `↑`/`↓` to move, `Enter` to launch, `Esc` to close |
+| `Mod+A` | Control center / quick settings |
+| `Mod+I` · `Mod+Ctrl+,` | Settings app |
+| `Super+Alt+L` | Lock the screen |
+| `Mod+Shift+/` | niri's "Important Hotkeys" overlay |
+
+### Windows
+
+| Key | Action |
+|---|---|
+| `Mod+Q` | Close window |
+| `Mod+D` | Toggle floating |
+| `Mod+F` | Maximize column |
+| `Mod+Shift+F` · `F11` | Fullscreen |
+| `Mod+C` | Centre the column |
+| `Mod+R` | Cycle preset column widths |
+| `Mod+-` / `Mod+=` | Narrow / widen the column by 10% |
+
+### Focus and movement
+
+| Key | Action |
+|---|---|
+| `Mod+←` `→` `↑` `↓` | Focus column left/right, window up/down |
+| `Mod+H` `L` `K` `J` | The same, vim-style |
+| `Mod+Ctrl+←` `→` `↑` `↓` | Move the column/window instead of focusing |
+| `Mod+Home` / `Mod+End` | First / last column |
+| `Mod+1`…`Mod+5` | Go to workspace 1–5 |
+| `Mod+Ctrl+1`…`5` | Send the column to workspace 1–5 |
+| `Mod+PgUp` / `Mod+PgDn` | Workspace up / down |
+| `Mod+Ctrl+PgUp` / `PgDn` | Send the column a workspace up / down |
+
+### Screenshots
+
+Region shots land in the clipboard, so they show up in the bar's clipboard
+history chip, and are also written to `~/Pictures/Screenshots/`.
+
+| Key | Action |
+|---|---|
+| `Print` · `Mod+Shift+S` | Select a region |
+| `Ctrl+Print` | Whole screen |
+| `Alt+Print` | Focused window |
+
+### Media, volume, brightness
+
+These carry `allow-when-locked=true`, so they keep working on the lock screen.
+Volume and mute go through `wpctl` (PipeWire). Transport keys go through the
+shell's own MPRIS handling — the same player the bar chip is showing — so there
+is no need for `playerctl`. Brightness uses `brightnessctl` and needs a real
+backlight; on a machine without one the shell hides the slider rather than
+pretending it works.
+
+| Key | Action |
+|---|---|
+| `XF86AudioRaiseVolume` / `LowerVolume` | Volume ±5% (capped at 100%) |
+| `XF86AudioMute` | Mute output |
+| `XF86AudioMicMute` | Mute microphone |
+| `XF86AudioPlay` | Play / pause |
+| `XF86AudioNext` / `Prev` | Next / previous track |
+| `XF86MonBrightnessUp` / `Down` | Brightness ±5% |
+
+### Session
+
+| Key | Action |
+|---|---|
+| `Mod+Shift+E` · `Ctrl+Alt+Del` | Quit niri (asks for confirmation) |
+| `Mod+Shift+P` | Power off the monitors |
+
+### Inside the shell's own surfaces
+
+Not niri binds — these are handled by the shell while a surface has focus.
+
+| Key | Where | Action |
+|---|---|---|
+| `Esc` | launcher, control center, media / clock / calendar / clipboard popups, tray menus | Close it |
+| `↑` / `↓` | app launcher | Move the selection |
+| `Enter` | app launcher | Launch the selected app |
+| `Enter` | lock screen | Submit the password |
+| `Esc` | settings search field | Clear it and drop focus |
+
+### Driving it from a script
+
+Every surface the keys reach is also an IPC call, so you can bind these to
+anything — a different key, a gesture, a cron job:
+
+```sh
+qs -c expressive ipc call launcher toggle        # open|close|toggle
+qs -c expressive ipc call controlCenter toggle
+qs -c expressive ipc call mediaPopup toggle      # also: timePopup, calendar, clipboard
+qs -c expressive ipc call media playPause        # also: next, previous
+qs -c expressive ipc call lock lock              # lock|unlock|toggle
+qs -c expressive ipc call settings page wallpaper
+qs -c expressive ipc call settings set bar.height 40
+qs -c expressive ipc call settings get bar.height
+```
 
 ---
 

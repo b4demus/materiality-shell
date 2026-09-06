@@ -137,7 +137,9 @@ binds {
     XF86AudioMicMute      allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"; }
     XF86MonBrightnessUp   allow-when-locked=true { spawn "brightnessctl" "set" "5%+"; }
     XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "set" "5%-"; }
-    XF86AudioPlay  { spawn "wpctl" "status"; }
+    XF86AudioPlay         allow-when-locked=true { spawn "qs" "-c" "expressive" "ipc" "call" "media" "playPause"; }
+    XF86AudioNext         allow-when-locked=true { spawn "qs" "-c" "expressive" "ipc" "call" "media" "next"; }
+    XF86AudioPrev         allow-when-locked=true { spawn "qs" "-c" "expressive" "ipc" "call" "media" "previous"; }
 
     // --- screenshots (region lands in the clipboard chip's history) -------
     Print            { screenshot; }

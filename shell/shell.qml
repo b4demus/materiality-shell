@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Mpris
 import "root:/config"
 import "root:/services"
 import "root:/modules/background"
@@ -16,6 +17,20 @@ import "root:/modules/settings"
 
 ShellRoot {
     id: shell
+
+    // Whatever is playing, else the first player that has a track at all —
+    // the same pick the bar chip and the popup make. Lives here rather than in
+    // the IpcHandler so it isn't published as a callable / a property signal.
+    function pickPlayer() {
+        const list = Mpris.players ? Mpris.players.values : []
+        let fallback = null
+        for (const p of list) {
+            if (!p) continue
+            if (p.playbackState === MprisPlaybackState.Playing) return p
+            if (!fallback) fallback = p
+        }
+        return fallback
+    }
 
     // ---- IPC: qs -c expressive ipc call <target> <fn> -------------------
     IpcHandler {
@@ -52,6 +67,25 @@ ShellRoot {
         function toggle(): void {
             Bus.timePopupOpen = false; Bus.calendarOpen = false; Bus.mediaPopupOpen = false
             Bus.clipboardOpen = !Bus.clipboardOpen
+        }
+    }
+    // Transport for the media keys. The shell already tracks MPRIS for the bar
+    // chip, so binding XF86Audio{Play,Next,Prev} here avoids pulling in
+    // playerctl just to reach the same players.
+    IpcHandler {
+        target: "media"
+
+        function playPause(): void {
+            const p = shell.pickPlayer()
+            if (p && p.canTogglePlaying) p.togglePlaying()
+        }
+        function next(): void {
+            const p = shell.pickPlayer()
+            if (p && p.canGoNext) p.next()
+        }
+        function previous(): void {
+            const p = shell.pickPlayer()
+            if (p && p.canGoPrevious) p.previous()
         }
     }
     IpcHandler {
