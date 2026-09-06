@@ -1,0 +1,22 @@
+{
+    "name": "onedark",
+    "label": "One Dark",
+    "dark": {
+        "bg": "#1e2227",
+        "fg": "#abb2bf",
+        "primary": "#61afef",
+        "secondary": "#c678dd",
+        "tertiary": "#56b6c2",
+        "error": "#e06c75",
+        "accents": ["#e06c75", "#98c379", "#e5c07b", "#61afef", "#c678dd", "#56b6c2", "#d19a66"]
+    },
+    "light": {
+        "bg": "#fafafa",
+        "fg": "#383a42",
+        "primary": "#4078f2",
+        "secondary": "#a626a4",
+        "tertiary": "#0184bc",
+        "error": "#e45649",
+        "accents": ["#e45649", "#50a14f", "#c18401", "#4078f2", "#a626a4", "#0184bc", "#986801"]
+    }
+}

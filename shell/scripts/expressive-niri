@@ -1,0 +1,690 @@
+#!/usr/bin/env python3
+"""expressive-niri — read/write bridge between the settings app and niri's config.
+
+niri is configured with KDL, and the user's config.kdl is full of comments and
+hand-written examples we must not destroy. So this is a *surgical* line editor,
+not a parse-and-regenerate round trip:
+
+  * scalar nodes  (gaps 16, width 3, layout "us,ru")  -> the value on the
+    existing line is rewritten in place, keeping indentation and any trailing
+    comment.
+  * flag nodes    (tap, natural-scroll, numlock, off) -> toggled by
+    commenting/uncommenting the existing line, so the file keeps its shape.
+  * missing nodes -> inserted into their block, creating parent blocks if needed.
+  * list-ish nodes (preset-column-widths, default-column-width) and the
+    shell-owned window rules live in fully managed blocks between markers.
+
+niri hot-reloads config.kdl on write, so every change here is live.
+
+Usage:
+  expressive-niri get                     dump the managed values as JSON
+  expressive-niri set '<json>'            apply a {key: value} patch
+  expressive-niri binds                   dump keybinds as JSON
+  expressive-niri bind-set '<json>'       upsert one bind {key, action, title}
+  expressive-niri bind-del '<key>'        remove a bind
+  expressive-niri rules '<json>'          rewrite the managed window-rule region
+  expressive-niri outputs '<json>'        rewrite the managed output blocks
+  expressive-niri validate                check the config parses (niri validate)
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+CONF = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "niri" / "config.kdl"
+STATE = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state")) / "expressive"
+
+RULES_OPEN = "// === expressive:rules — managed by the settings app ==="
+RULES_CLOSE = "// === /expressive:rules ==="
+OUT_OPEN = "// === expressive:outputs — managed by the settings app ==="
+OUT_CLOSE = "// === /expressive:outputs ==="
+BINDS_OPEN = "    // === expressive:binds — managed by the settings app ==="
+BINDS_CLOSE = "    // === /expressive:binds ==="
+
+
+# --------------------------------------------------------------------------- #
+#  schema:  setting key -> (block path, node name, kind)
+#
+#  kind: "int" | "float" | "str" | "flag" | "iflag"
+#        iflag = inverted flag; the node's *presence* means the feature is OFF
+#        (niri spells disabling as a bare `off` inside the block).
+# --------------------------------------------------------------------------- #
+SCHEMA = {
+    "gaps":                 ("layout", "gaps", "int"),
+    "centerFocusedColumn":  ("layout", "center-focused-column", "str"),
+    "focusRingEnabled":     ("layout/focus-ring", "off", "iflag"),
+    "focusRingWidth":       ("layout/focus-ring", "width", "int"),
+    "borderEnabled":        ("layout/border", "off", "iflag"),
+    "borderWidth":          ("layout/border", "width", "int"),
+    "shadowEnabled":        ("layout/shadow", "on", "flag"),
+    "strutLeft":            ("layout/struts", "left", "int"),
+    "strutRight":           ("layout/struts", "right", "int"),
+    "strutTop":             ("layout/struts", "top", "int"),
+    "strutBottom":          ("layout/struts", "bottom", "int"),
+
+    "focusFollowsMouse":    ("input", "focus-follows-mouse", "flag"),
+    "warpMouseToFocus":     ("input", "warp-mouse-to-focus", "flag"),
+
+    "kbLayout":             ("input/keyboard/xkb", "layout", "str"),
+    "kbVariant":            ("input/keyboard/xkb", "variant", "str"),
+    "kbOptions":            ("input/keyboard/xkb", "options", "str"),
+    "kbRepeatDelay":        ("input/keyboard", "repeat-delay", "int"),
+    "kbRepeatRate":         ("input/keyboard", "repeat-rate", "int"),
+    "numlock":              ("input/keyboard", "numlock", "flag"),
+
+    "touchpadEnabled":      ("input/touchpad", "off", "iflag"),
+    "touchpadTap":          ("input/touchpad", "tap", "flag"),
+    "touchpadNatural":      ("input/touchpad", "natural-scroll", "flag"),
+    "touchpadDwt":          ("input/touchpad", "dwt", "flag"),
+    "touchpadSpeed":        ("input/touchpad", "accel-speed", "float"),
+    "touchpadAccelProfile": ("input/touchpad", "accel-profile", "str"),
+    "touchpadScrollMethod": ("input/touchpad", "scroll-method", "str"),
+    "touchpadClickMethod":  ("input/touchpad", "click-method", "str"),
+
+    "mouseEnabled":         ("input/mouse", "off", "iflag"),
+    "mouseNatural":         ("input/mouse", "natural-scroll", "flag"),
+    "mouseSpeed":           ("input/mouse", "accel-speed", "float"),
+    "mouseAccelProfile":    ("input/mouse", "accel-profile", "str"),
+    "mouseMiddleEmulation": ("input/mouse", "middle-emulation", "flag"),
+
+    "animationsEnabled":    ("animations", "off", "iflag"),
+    "animationSlowdown":    ("animations", "slowdown", "float"),
+
+    "preferNoCsd":          ("", "prefer-no-csd", "flag"),
+}
+
+# Blocks whose entire body we own (rewritten wholesale).
+MANAGED_BODY = {"defaultColumnWidth", "presetColumnWidths"}
+
+
+# --------------------------------------------------------------------------- #
+#  line model
+# --------------------------------------------------------------------------- #
+class Doc:
+    """config.kdl as a list of lines, with a block-path index over it."""
+
+    def __init__(self, text: str):
+        self.lines = text.split("\n")
+        self.dirty = False
+
+    def dump(self) -> str:
+        return "\n".join(self.lines)
+
+    # -- indexing ---------------------------------------------------------
+    @staticmethod
+    def _strip_comment(s: str) -> str:
+        """Drop a trailing // comment that isn't inside a string literal."""
+        out, in_str, i = [], False, 0
+        while i < len(s):
+            c = s[i]
+            if c == '"' and (i == 0 or s[i - 1] != "\\"):
+                in_str = not in_str
+            if not in_str and c == "/" and i + 1 < len(s) and s[i + 1] == "/":
+                break
+            out.append(c)
+            i += 1
+        return "".join(out)
+
+    def scan(self):
+        """Yield (index, path, name, active) for every node-looking line.
+
+        `path` is the slash-joined names of the enclosing blocks. `active` is
+        False for lines commented out with // or disabled with the KDL /- prefix.
+        """
+        stack: list[str] = []
+        for i, raw in enumerate(self.lines):
+            s = raw.strip()
+            if not s:
+                continue
+            active = True
+            if s.startswith("//"):
+                active = False
+                s = s[2:].strip()
+            if s.startswith("/-"):
+                active = False
+                s = s[2:].strip()
+            if not s:
+                continue
+
+            # A lone closing brace pops a block.
+            if s == "}":
+                if active and stack:
+                    stack.pop()
+                continue
+
+            code = self._strip_comment(s).strip()
+            if not code:
+                continue
+
+            name = code.split()[0].split("{")[0].strip()
+            if not name:
+                continue
+
+            yield i, "/".join(stack), name, active
+
+            if active:
+                opens = code.count("{") - code.count("}")
+                if opens > 0:
+                    stack.append(name)
+
+    def find(self, path: str, name: str, want_active=None):
+        """First line matching path+name. want_active None = either.
+
+        With want_active None an *active* node always wins over a commented-out
+        one, wherever they sit in the block. Config files are full of commented
+        examples right above the real setting (`// layout "us,ru"` above
+        `layout "us,ru"`), and uncommenting the example instead of editing the
+        real node would silently create a duplicate.
+        """
+        commented = (None, None)
+        for i, p, n, active in self.scan():
+            if p != path or n != name:
+                continue
+            if want_active is not None:
+                if active == want_active:
+                    return i, active
+                continue
+            if active:
+                return i, active
+            if commented[0] is None:
+                commented = (i, active)
+        return commented
+
+    def block_range(self, path: str):
+        """(open_line, close_line) of the block at `path`, or (None, None)."""
+        if path == "":
+            return 0, len(self.lines)
+        parent, _, name = path.rpartition("/")
+        idx, active = self.find(parent, name, want_active=True)
+        if idx is None:
+            return None, None
+        depth = 0
+        for j in range(idx, len(self.lines)):
+            s = self.lines[j].strip()
+            if s.startswith("//"):
+                continue
+            code = self._strip_comment(s)
+            depth += code.count("{") - code.count("}")
+            if depth <= 0 and j > idx or (depth == 0 and "{" in code and "}" in code):
+                return idx, j
+        return idx, len(self.lines) - 1
+
+    @staticmethod
+    def indent_of(line: str) -> str:
+        return line[: len(line) - len(line.lstrip())]
+
+    # -- mutation ---------------------------------------------------------
+    def ensure_block(self, path: str) -> None:
+        """Create every missing block along `path`."""
+        if not path:
+            return
+        parts = path.split("/")
+        for k in range(1, len(parts) + 1):
+            sub = "/".join(parts[:k])
+            if self.block_range(sub)[0] is not None:
+                continue
+            parent = "/".join(parts[:k - 1])
+            name = parts[k - 1]
+            if parent == "":
+                self.lines.extend(["", f"{name} {{", "}"])
+            else:
+                popen, pclose = self.block_range(parent)
+                ind = self.indent_of(self.lines[popen]) + "    "
+                self.lines[pclose:pclose] = [f"{ind}{name} {{", f"{ind}}}"]
+            self.dirty = True
+
+    def set_scalar(self, path: str, name: str, literal: str) -> None:
+        idx, active = self.find(path, name)
+        if idx is not None:
+            line = self.lines[idx]
+            ind = self.indent_of(line)
+            body = line.strip()
+            if body.startswith("//"):
+                body = body[2:].strip()
+            if body.startswith("/-"):
+                body = body[2:].strip()
+            # keep any trailing comment on the line
+            code = self._strip_comment(body)
+            trail = body[len(code):]
+            new = f"{ind}{name} {literal}{(' ' + trail.strip()) if trail.strip() else ''}"
+            if new != line:
+                self.lines[idx] = new
+                self.dirty = True
+            return
+        self.ensure_block(path)
+        popen, pclose = self.block_range(path)
+        if popen is None:
+            return
+        ind = (self.indent_of(self.lines[popen]) + "    ") if path else ""
+        at = pclose if path else len(self.lines)
+        self.lines[at:at] = [f"{ind}{name} {literal}"]
+        self.dirty = True
+
+    def set_flag(self, path: str, name: str, on: bool) -> None:
+        idx, active = self.find(path, name)
+        if idx is not None:
+            line = self.lines[idx]
+            ind = self.indent_of(line)
+            body = line.strip().lstrip("/-").lstrip("/").strip()
+            if body.startswith("- "):
+                body = body[2:]
+            new = f"{ind}{body}" if on else f"{ind}// {body}"
+            if new != line:
+                self.lines[idx] = new
+                self.dirty = True
+            return
+        if not on:
+            return                      # absent already means off
+        self.ensure_block(path)
+        popen, pclose = self.block_range(path)
+        if popen is None:
+            return
+        ind = (self.indent_of(self.lines[popen]) + "    ") if path else ""
+        at = pclose if path else len(self.lines)
+        self.lines[at:at] = [f"{ind}{name}"]
+        self.dirty = True
+
+    def replace_block_body(self, path: str, body: list[str]) -> None:
+        """Rewrite everything between a block's braces."""
+        self.ensure_block(path)
+        popen, pclose = self.block_range(path)
+        if popen is None:
+            return
+        ind = self.indent_of(self.lines[popen])
+        inner = ind + "    "
+        head = self.lines[popen]
+        code = self._strip_comment(head)
+        if "{" in code and "}" in code:          # single-line block: expand it
+            name = code.strip().split("{")[0].strip()
+            self.lines[popen:popen + 1] = (
+                [f"{ind}{name} {{"] + [inner + b for b in body] + [f"{ind}}}"]
+            )
+        else:
+            self.lines[popen + 1:pclose] = [inner + b for b in body]
+        self.dirty = True
+
+    def replace_region(self, open_marker: str, close_marker: str, body: list[str]) -> None:
+        """Rewrite (or append) a marker-delimited managed region."""
+        try:
+            a = next(i for i, l in enumerate(self.lines) if l.strip() == open_marker.strip())
+            b = next(i for i, l in enumerate(self.lines) if l.strip() == close_marker.strip())
+        except StopIteration:
+            self.lines.extend([""] + [open_marker] + body + [close_marker])
+            self.dirty = True
+            return
+        new = [open_marker] + body + [close_marker]
+        if self.lines[a:b + 1] != new:
+            self.lines[a:b + 1] = new
+            self.dirty = True
+
+    # -- reading ----------------------------------------------------------
+    def read_scalar(self, path: str, name: str):
+        idx, active = self.find(path, name, want_active=True)
+        if idx is None:
+            return None
+        code = self._strip_comment(self.lines[idx].strip())
+        rest = code[len(name):].strip().rstrip(";").strip()
+        if not rest:
+            return True
+        if rest.startswith('"') and rest.endswith('"') and len(rest) >= 2:
+            return rest[1:-1]
+        try:
+            return float(rest) if "." in rest else int(rest)
+        except ValueError:
+            return rest
+
+    def has_active(self, path: str, name: str) -> bool:
+        idx, _ = self.find(path, name, want_active=True)
+        return idx is not None
+
+
+# --------------------------------------------------------------------------- #
+#  read / write the managed value set
+# --------------------------------------------------------------------------- #
+def kdl_str(v) -> str:
+    return '"' + str(v).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def get_values(doc: Doc) -> dict:
+    out = {}
+    for key, (path, name, kind) in SCHEMA.items():
+        if kind == "flag":
+            out[key] = doc.has_active(path, name)
+        elif kind == "iflag":
+            out[key] = not doc.has_active(path, name)
+        else:
+            v = doc.read_scalar(path, name)
+            if v is None:
+                out[key] = None
+            elif kind == "int":
+                out[key] = int(v) if isinstance(v, (int, float)) else None
+            elif kind == "float":
+                out[key] = float(v) if isinstance(v, (int, float)) else None
+            else:
+                out[key] = v
+
+    # default-column-width { proportion 0.5; }
+    dcw = None
+    popen, pclose = doc.block_range("layout/default-column-width")
+    if popen is not None:
+        body = " ".join(doc.lines[popen:pclose + 1])
+        m = re.search(r"proportion\s+([0-9.]+)", body)
+        if m:
+            dcw = float(m.group(1))
+        else:
+            m = re.search(r"fixed\s+(\d+)", body)
+            dcw = int(m.group(1)) if m else None
+    out["defaultColumnWidth"] = dcw
+
+    presets = []
+    popen, pclose = doc.block_range("layout/preset-column-widths")
+    if popen is not None:
+        for line in doc.lines[popen:pclose + 1]:
+            s = line.strip()
+            if s.startswith("//"):
+                continue
+            m = re.match(r"proportion\s+([0-9.]+)", s)
+            if m:
+                presets.append(float(m.group(1)))
+    out["presetColumnWidths"] = presets
+
+    m = re.search(r"geometry-corner-radius\s+([0-9.]+)", doc.dump())
+    out["cornerRadius"] = float(m.group(1)) if m else None
+    return out
+
+
+def set_values(doc: Doc, patch: dict) -> None:
+    for key, value in patch.items():
+        if value is None:
+            continue
+        if key == "defaultColumnWidth":
+            if isinstance(value, (int, float)) and 0 < float(value) <= 1:
+                doc.replace_block_body("layout/default-column-width",
+                                       [f"proportion {round(float(value), 5)}"])
+            continue
+        if key == "presetColumnWidths":
+            vals = [f"proportion {round(float(v), 5)}" for v in value if 0 < float(v) <= 1]
+            doc.replace_block_body("layout/preset-column-widths", vals or ["proportion 0.5"])
+            continue
+        if key == "cornerRadius":
+            set_corner_radius(doc, float(value))
+            continue
+        if key not in SCHEMA:
+            continue
+        path, name, kind = SCHEMA[key]
+        if kind == "flag":
+            doc.set_flag(path, name, bool(value))
+        elif kind == "iflag":
+            doc.set_flag(path, name, not bool(value))
+        elif kind == "str":
+            doc.set_scalar(path, name, kdl_str(value))
+        elif kind == "int":
+            doc.set_scalar(path, name, str(int(value)))
+        elif kind == "float":
+            doc.set_scalar(path, name, str(round(float(value), 3)))
+
+
+def set_corner_radius(doc: Doc, radius: float) -> None:
+    """The shell owns one window-rule that rounds every window to match it."""
+    r = round(radius, 1)
+    r_txt = str(int(r)) if r == int(r) else str(r)
+    body = [
+        "window-rule {",
+        f"    geometry-corner-radius {r_txt}",
+        "    clip-to-geometry true",
+        "}",
+    ]
+    text = doc.dump()
+    if RULES_OPEN in text:
+        # the managed rules region already carries it
+        pass
+    # Replace a pre-existing hand-written corner-radius rule once, then own it.
+    if "expressive:corner" not in text:
+        for i, p, n, active in list(doc.scan()):
+            if p == "" and n == "window-rule" and active:
+                popen, pclose = i, None
+                depth = 0
+                for j in range(i, len(doc.lines)):
+                    code = Doc._strip_comment(doc.lines[j].strip())
+                    depth += code.count("{") - code.count("}")
+                    if depth <= 0 and j > i:
+                        pclose = j
+                        break
+                if pclose is None:
+                    continue
+                chunk = "\n".join(doc.lines[popen:pclose + 1])
+                if "geometry-corner-radius" in chunk and "match" not in chunk:
+                    doc.lines[popen:pclose + 1] = (
+                        ["// === expressive:corner — managed by the settings app ==="]
+                        + body
+                        + ["// === /expressive:corner ==="]
+                    )
+                    doc.dirty = True
+                    return
+    doc.replace_region("// === expressive:corner — managed by the settings app ===",
+                       "// === /expressive:corner ===", body)
+
+
+# --------------------------------------------------------------------------- #
+#  window rules (managed region)
+# --------------------------------------------------------------------------- #
+def write_rules(doc: Doc, rules: list) -> None:
+    body: list[str] = []
+    for r in rules:
+        app = (r.get("appId") or "").strip()
+        title = (r.get("title") or "").strip()
+        if not app and not title:
+            continue
+        match = "    match"
+        if app:
+            match += f' app-id=r#"{app}"#'
+        if title:
+            match += f' title=r#"{title}"#'
+        body.append("window-rule {")
+        body.append(match)
+        if r.get("floating"):
+            body.append("    open-floating true")
+        if r.get("maximized"):
+            body.append("    open-maximized true")
+        if r.get("fullscreen"):
+            body.append("    open-fullscreen true")
+        if r.get("workspace"):
+            body.append(f'    open-on-workspace {kdl_str(r["workspace"])}')
+        if r.get("opacity") is not None:
+            body.append(f"    opacity {round(float(r['opacity']), 2)}")
+        if r.get("blockOut"):
+            body.append('    block-out-from "screen-capture"')
+        body.append("}")
+    doc.replace_region(RULES_OPEN, RULES_CLOSE, body)
+
+
+# --------------------------------------------------------------------------- #
+#  outputs (managed region)
+# --------------------------------------------------------------------------- #
+def write_outputs(doc: Doc, outputs: dict) -> None:
+    body: list[str] = []
+    for name, cfg in outputs.items():
+        if not cfg:
+            continue
+        lines = [f"output {kdl_str(name)} {{"]
+        if cfg.get("enabled") is False:
+            lines.append("    off")
+        if cfg.get("mode"):
+            lines.append(f'    mode {kdl_str(cfg["mode"])}')
+        if cfg.get("scale"):
+            s = float(cfg["scale"])
+            lines.append(f"    scale {int(s) if s == int(s) else round(s, 3)}")
+        if cfg.get("transform"):
+            lines.append(f'    transform {kdl_str(cfg["transform"])}')
+        if cfg.get("x") is not None and cfg.get("y") is not None:
+            lines.append(f'    position x={int(cfg["x"])} y={int(cfg["y"])}')
+        if cfg.get("vrr"):
+            lines.append("    variable-refresh-rate")
+        lines.append("}")
+        body.extend(lines)
+    doc.replace_region(OUT_OPEN, OUT_CLOSE, body)
+
+
+# --------------------------------------------------------------------------- #
+#  keybinds
+# --------------------------------------------------------------------------- #
+BIND_RE = re.compile(
+    r"^\s*(?P<key>[A-Za-z0-9_+]+(?:\+[A-Za-z0-9_]+)*)"
+    r"(?P<props>(?:\s+[a-z-]+=(?:\"[^\"]*\"|null|true|false))*)"
+    r"\s*\{\s*(?P<action>.*?)\s*;?\s*\}\s*$"
+)
+TITLE_RE = re.compile(r'hotkey-overlay-title="([^"]*)"')
+
+
+def binds_range(doc: Doc):
+    return doc.block_range("binds")
+
+
+def read_binds(doc: Doc) -> list:
+    popen, pclose = binds_range(doc)
+    if popen is None:
+        return []
+    out = []
+    for i in range(popen + 1, pclose):
+        raw = doc.lines[i]
+        s = raw.strip()
+        if not s or s.startswith("//") or s == "}":
+            continue
+        m = BIND_RE.match(s)
+        if not m:
+            continue
+        t = TITLE_RE.search(m.group("props") or "")
+        out.append({
+            "line": i,
+            "key": m.group("key"),
+            "action": m.group("action").strip(),
+            "title": t.group(1) if t else "",
+            "props": (m.group("props") or "").strip(),
+        })
+    return out
+
+
+def upsert_bind(doc: Doc, key: str, action: str, title: str = "", props: str = "") -> None:
+    action = action.strip().rstrip(";")
+    extra = props.strip()
+    if title:
+        extra = re.sub(r'hotkey-overlay-title="[^"]*"', "", extra).strip()
+        extra = (extra + f' hotkey-overlay-title="{title}"').strip()
+    line = f"    {key}{(' ' + extra) if extra else ''} {{ {action}; }}"
+    for b in read_binds(doc):
+        if b["key"].lower() == key.lower():
+            if doc.lines[b["line"]] != line:
+                doc.lines[b["line"]] = line
+                doc.dirty = True
+            return
+    popen, pclose = binds_range(doc)
+    if popen is None:
+        doc.lines.extend(["", "binds {", line, "}"])
+    else:
+        doc.lines[pclose:pclose] = [line]
+    doc.dirty = True
+
+
+def delete_bind(doc: Doc, key: str) -> None:
+    for b in read_binds(doc):
+        if b["key"].lower() == key.lower():
+            del doc.lines[b["line"]]
+            doc.dirty = True
+            return
+
+
+# --------------------------------------------------------------------------- #
+def load() -> Doc:
+    return Doc(CONF.read_text())
+
+
+def save(doc: Doc) -> None:
+    if not doc.dirty:
+        return
+    STATE.mkdir(parents=True, exist_ok=True)
+    backup = STATE / "niri-config.kdl.bak"
+    try:
+        shutil.copy2(CONF, backup)
+    except OSError:
+        pass
+    text = doc.dump()
+    tmp = CONF.with_suffix(".kdl.tmp")
+    tmp.write_text(text)
+
+    # niri validate is the safety net: never hand the compositor a broken file.
+    if shutil.which("niri"):
+        r = subprocess.run(["niri", "validate", "-c", str(tmp)],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            tmp.unlink(missing_ok=True)
+            print("niri rejected the generated config; nothing was written:",
+                  file=sys.stderr)
+            print(r.stderr.strip()[:2000], file=sys.stderr)
+            sys.exit(1)
+    os.replace(tmp, CONF)
+
+
+def main(argv: list[str]) -> int:
+    if not argv:
+        print(__doc__)
+        return 2
+    cmd = argv[0]
+
+    if cmd == "get":
+        print(json.dumps(get_values(load()), indent=2))
+        return 0
+
+    if cmd == "set":
+        doc = load()
+        set_values(doc, json.loads(argv[1]))
+        save(doc)
+        return 0
+
+    if cmd == "binds":
+        print(json.dumps(read_binds(load()), indent=2))
+        return 0
+
+    if cmd == "bind-set":
+        spec = json.loads(argv[1])
+        doc = load()
+        upsert_bind(doc, spec["key"], spec.get("action", ""),
+                    spec.get("title", ""), spec.get("props", ""))
+        save(doc)
+        return 0
+
+    if cmd == "bind-del":
+        doc = load()
+        delete_bind(doc, argv[1])
+        save(doc)
+        return 0
+
+    if cmd == "rules":
+        doc = load()
+        write_rules(doc, json.loads(argv[1]))
+        save(doc)
+        return 0
+
+    if cmd == "outputs":
+        doc = load()
+        write_outputs(doc, json.loads(argv[1]))
+        save(doc)
+        return 0
+
+    if cmd == "validate":
+        r = subprocess.run(["niri", "validate", "-c", str(CONF)],
+                           capture_output=True, text=True)
+        print(r.stdout or r.stderr)
+        return r.returncode
+
+    print(f"unknown command: {cmd}", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

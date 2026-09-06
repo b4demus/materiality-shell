@@ -1,0 +1,9 @@
+# matugen config for the "expressive" Quickshell shell.
+# Used by ~/.local/bin/expressive-wall.
+
+[config]
+# nothing global needed
+
+[templates.expressive-colors]
+input_path = "~/.config/quickshell/expressive/theme/template-colors.json"
+output_path = "~/.local/state/expressive/colors.json"

@@ -1,0 +1,22 @@
+{
+    "name": "kanagawa",
+    "label": "Kanagawa",
+    "dark": {
+        "bg": "#16161d",
+        "fg": "#dcd7ba",
+        "primary": "#7e9cd8",
+        "secondary": "#98bb6c",
+        "tertiary": "#7fb4ca",
+        "error": "#e82424",
+        "accents": ["#c34043", "#76946a", "#c0a36e", "#7e9cd8", "#957fb8", "#6a9589", "#ffa066"]
+    },
+    "light": {
+        "bg": "#f2ecbc",
+        "fg": "#545464",
+        "primary": "#4d699b",
+        "secondary": "#6f894e",
+        "tertiary": "#597b75",
+        "error": "#c84053",
+        "accents": ["#c84053", "#6f894e", "#77713f", "#4d699b", "#624c83", "#597b75", "#e98a00"]
+    }
+}

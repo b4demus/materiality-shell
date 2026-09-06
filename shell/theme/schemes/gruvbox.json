@@ -1,0 +1,22 @@
+{
+    "name": "gruvbox",
+    "label": "Gruvbox",
+    "dark": {
+        "bg": "#1d2021",
+        "fg": "#ebdbb2",
+        "primary": "#d79921",
+        "secondary": "#98971a",
+        "tertiary": "#458588",
+        "error": "#cc241d",
+        "accents": ["#fb4934", "#b8bb26", "#fabd2f", "#83a598", "#d3869b", "#8ec07c", "#fe8019"]
+    },
+    "light": {
+        "bg": "#fbf1c7",
+        "fg": "#3c3836",
+        "primary": "#b57614",
+        "secondary": "#79740e",
+        "tertiary": "#076678",
+        "error": "#9d0006",
+        "accents": ["#9d0006", "#79740e", "#b57614", "#076678", "#8f3f71", "#427b58", "#af3a03"]
+    }
+}

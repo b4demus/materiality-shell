@@ -1,0 +1,192 @@
+// Materiality — example niri config
+// https://github.com/b4demus/materiality-shell
+//
+// A complete, working niri config with the shell wired in. Drop it at
+// ~/.config/niri/config.kdl (the installer does this for you if you have
+// none, or with --niri). Tweak outputs / keyboard layout / keybinds freely —
+// only the blocks marked "expressive:" are rewritten by the shell.
+//
+// KDL format:  https://kdl.dev      niri wiki:  https://yalter.github.io/niri/
+
+// Qt apps read the GTK palette that the shell keeps in sync with Material You.
+environment {
+    QT_QPA_PLATFORMTHEME "gtk3"
+}
+
+input {
+    keyboard {
+        xkb {
+            // layout "us,ru"
+            // options "grp:alt_shift_toggle,compose:ralt"
+        }
+        repeat-delay 400
+        repeat-rate 40
+    }
+    touchpad {
+        tap
+        natural-scroll
+        dwt
+    }
+    mouse {
+        // accel-profile "flat"
+    }
+    // focus-follows-mouse max-scroll-amount="0%"
+}
+
+// One auto output. Add a block per monitor if you need scale/position/mode.
+output "eDP-1" {
+    // scale 1.0
+    // mode "1920x1080@60.000"
+    // position x=0 y=0
+}
+
+layout {
+    gaps 12
+    center-focused-column "never"
+    preset-column-widths {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+    }
+    default-column-width { proportion 0.5; }
+
+    focus-ring {
+        width 3
+
+        // === expressive:colors — managed by ~/.local/bin/expressive-wall ===
+        // Rewritten from ~/.local/state/expressive/colors.json so the ring
+        // tracks the Material You palette. Edit the fallbacks, not the markers.
+        active-color "#f3b7b6"
+        inactive-color "#463e3e"
+        urgent-color "#ffb4ab"
+        // === /expressive:colors ===
+    }
+
+    border {
+        off
+        width 2
+    }
+
+    shadow {
+        // on
+        softness 30
+        spread 5
+        offset x=0 y=5
+        color "#00000070"
+    }
+}
+
+// The shell: bar, OSD, notifications, launcher, control center, lock screen.
+spawn-at-startup "qs" "-c" "expressive"
+
+// A polkit agent, so the shell can ask for privileges when it has to.
+spawn-at-startup "sh" "-c" "/usr/libexec/polkit-mate-authentication-agent-1 || /usr/lib/polkit-mate/polkit-mate-authentication-agent-1 || /usr/libexec/polkit-gnome-authentication-agent-1 || true"
+
+prefer-no-csd
+
+cursor {
+    xcursor-theme "Bibata-Modern-Classic"
+    xcursor-size 24
+}
+
+screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
+
+hotkey-overlay {
+    // skip-at-startup
+}
+
+// Rounded corners to match the shell's surfaces. Managed by the settings app.
+// === expressive:corner — managed by the settings app ===
+window-rule {
+    geometry-corner-radius 16
+    clip-to-geometry true
+}
+// === /expressive:corner ===
+
+// Float the usual transient windows.
+window-rule {
+    match app-id=r#"^(pavucontrol|nm-connection-editor|blueman-manager)$"#
+    open-floating true
+}
+
+animations {
+    // Keep window-resize quick so the bar's fullscreen hide isn't overtaken
+    // by niri growing the window.
+    window-resize { duration-ms 90; }
+}
+
+binds {
+    Mod+Shift+Slash { show-hotkey-overlay; }
+
+    // --- launching --------------------------------------------------------
+    Mod+Return hotkey-overlay-title="Terminal" { spawn "alacritty"; }
+    Mod+Space  hotkey-overlay-title="App launcher" { spawn "qs" "-c" "expressive" "ipc" "call" "launcher" "toggle"; }
+    Mod+A      hotkey-overlay-title="Control center" { spawn "qs" "-c" "expressive" "ipc" "call" "controlCenter" "toggle"; }
+    Mod+I           hotkey-overlay-title="Settings" { spawn "expressive-settings"; }
+    Mod+Ctrl+Comma  hotkey-overlay-title="Settings" { spawn "expressive-settings"; }
+    Super+Alt+L     hotkey-overlay-title="Lock" { spawn "qs" "-c" "expressive" "ipc" "call" "lock" "lock"; }
+
+    // --- media / brightness (also work while locked) ----------------------
+    XF86AudioRaiseVolume  allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ -l 1.0"; }
+    XF86AudioLowerVolume  allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"; }
+    XF86AudioMute         allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"; }
+    XF86AudioMicMute      allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"; }
+    XF86MonBrightnessUp   allow-when-locked=true { spawn "brightnessctl" "set" "5%+"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "set" "5%-"; }
+    XF86AudioPlay  { spawn "wpctl" "status"; }
+
+    // --- screenshots (region lands in the clipboard chip's history) -------
+    Print            { screenshot; }
+    Mod+Shift+S      { screenshot; }
+    Ctrl+Print       { screenshot-screen; }
+    Alt+Print        { screenshot-window; }
+
+    // --- windows ---------------------------------------------------------
+    Mod+Q { close-window; }
+    Mod+D { toggle-window-floating; }
+    Mod+F { maximize-column; }
+    Mod+Shift+F { fullscreen-window; }
+    F11 { fullscreen-window; }
+    Mod+C { center-column; }
+
+    Mod+Left  { focus-column-left; }
+    Mod+Right { focus-column-right; }
+    Mod+Up    { focus-window-up; }
+    Mod+Down  { focus-window-down; }
+    Mod+H { focus-column-left; }
+    Mod+L { focus-column-right; }
+    Mod+J { focus-window-down; }
+    Mod+K { focus-window-up; }
+
+    Mod+Ctrl+Left  { move-column-left; }
+    Mod+Ctrl+Right { move-column-right; }
+    Mod+Ctrl+Up    { move-window-up; }
+    Mod+Ctrl+Down  { move-window-down; }
+
+    Mod+Home { focus-column-first; }
+    Mod+End  { focus-column-last; }
+
+    Mod+1 { focus-workspace 1; }
+    Mod+2 { focus-workspace 2; }
+    Mod+3 { focus-workspace 3; }
+    Mod+4 { focus-workspace 4; }
+    Mod+5 { focus-workspace 5; }
+    Mod+Ctrl+1 { move-column-to-workspace 1; }
+    Mod+Ctrl+2 { move-column-to-workspace 2; }
+    Mod+Ctrl+3 { move-column-to-workspace 3; }
+    Mod+Ctrl+4 { move-column-to-workspace 4; }
+    Mod+Ctrl+5 { move-column-to-workspace 5; }
+
+    Mod+Page_Down { focus-workspace-down; }
+    Mod+Page_Up   { focus-workspace-up; }
+    Mod+Ctrl+Page_Down { move-column-to-workspace-down; }
+    Mod+Ctrl+Page_Up   { move-column-to-workspace-up; }
+
+    Mod+R { switch-preset-column-width; }
+    Mod+Minus { set-column-width "-10%"; }
+    Mod+Equal { set-column-width "+10%"; }
+
+    Mod+Shift+E { quit; }
+    Ctrl+Alt+Delete { quit; }
+    Mod+Shift+P { power-off-monitors; }
+}

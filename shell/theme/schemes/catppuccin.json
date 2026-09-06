@@ -1,0 +1,22 @@
+{
+    "name": "catppuccin",
+    "label": "Catppuccin",
+    "dark": {
+        "bg": "#181825",
+        "fg": "#cdd6f4",
+        "primary": "#cba6f7",
+        "secondary": "#89b4fa",
+        "tertiary": "#94e2d5",
+        "error": "#f38ba8",
+        "accents": ["#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#cba6f7", "#94e2d5", "#fab387"]
+    },
+    "light": {
+        "bg": "#eff1f5",
+        "fg": "#4c4f69",
+        "primary": "#8839ef",
+        "secondary": "#1e66f5",
+        "tertiary": "#179299",
+        "error": "#d20f39",
+        "accents": ["#d20f39", "#40a02b", "#df8e1d", "#1e66f5", "#8839ef", "#179299", "#fe640b"]
+    }
+}

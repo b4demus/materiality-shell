@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# expressive-settings [page] — open the shell's settings window.
+# With no argument it opens wherever it was last; with one it deep-links to a
+# page id (appearance, wallpaper, bar, niri, displays, nightlight, wifi, …).
+set -euo pipefail
+
+if [[ $# -ge 1 ]]; then
+    exec qs -c expressive ipc call settings page "$1"
+fi
+exec qs -c expressive ipc call settings open

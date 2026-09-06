@@ -1,0 +1,22 @@
+{
+    "name": "solarized",
+    "label": "Solarized",
+    "dark": {
+        "bg": "#001f27",
+        "fg": "#93a1a1",
+        "primary": "#268bd2",
+        "secondary": "#2aa198",
+        "tertiary": "#859900",
+        "error": "#dc322f",
+        "accents": ["#dc322f", "#859900", "#b58900", "#268bd2", "#6c71c4", "#2aa198", "#cb4b16"]
+    },
+    "light": {
+        "bg": "#fdf6e3",
+        "fg": "#657b83",
+        "primary": "#268bd2",
+        "secondary": "#2aa198",
+        "tertiary": "#859900",
+        "error": "#dc322f",
+        "accents": ["#dc322f", "#859900", "#b58900", "#268bd2", "#6c71c4", "#2aa198", "#cb4b16"]
+    }
+}

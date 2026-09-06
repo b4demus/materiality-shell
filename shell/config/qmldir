@@ -1,0 +1,5 @@
+singleton Settings 1.0 Settings.qml
+singleton Files 1.0 Files.qml
+singleton Appearance 1.0 Appearance.qml
+singleton Motion 1.0 Motion.qml
+singleton Colors 1.0 Colors.qml

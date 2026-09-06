@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# cmatrix wrapper — cmatrix hard-defaults to ANSI green regardless of the palette,
+# so tint the rain with the ANSI colour closest to the active Material You accent
+# (`primary`). Pass your own -C / -r / -C... and this stays out of the way.
+real=/usr/bin/cmatrix
+[ -x "$real" ] || real=$(command -v -- cmatrix.real 2>/dev/null)
+
+for a in "$@"; do
+    case "$a" in -C) exec "$real" "$@";; esac
+done
+
+colour=$(python3 - <<'PY' 2>/dev/null || true
+import json, math, os
+try:
+    hx = json.load(open(os.path.expanduser(
+        "~/.local/state/expressive/colors.json")))["dark"]["primary"].lstrip("#")
+    r, g, b = (int(hx[i:i+2], 16) / 255 for i in (0, 2, 4))
+except Exception:
+    print("green"); raise SystemExit
+
+def s2l(c): return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+r, g, b = s2l(r), s2l(g), s2l(b)
+l = 0.4122214708*r + 0.5363325363*g + 0.0514459929*b
+m = 0.2119034982*r + 0.6806995451*g + 0.1073969566*b
+s = 0.0883024619*r + 0.2817188376*g + 0.6299787005*b
+l, m, s = l**(1/3), m**(1/3), s**(1/3)
+A = 1.9779984951*l - 2.4285922050*m + 0.4505937099*s
+B = 0.0259040371*l + 0.7827717662*m - 0.8086757660*s
+if (A*A + B*B) ** 0.5 < 0.03:
+    print("white"); raise SystemExit
+h = math.degrees(math.atan2(B, A)) % 360
+anchors = {"red": 27, "yellow": 95, "green": 142, "cyan": 196, "blue": 259, "magenta": 328}
+dist = lambda x, y: min(abs(x - y), 360 - abs(x - y))
+print(min(anchors, key=lambda k: dist(h, anchors[k])))
+PY
+)
+
+exec "$real" -C "${colour:-green}" "$@"

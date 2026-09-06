@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# expressive-clip — tiny Wayland clipboard history for the "expressive" shell.
+#
+#   expressive-clip watch      run the clipboard watcher (spawn-at-startup)
+#   expressive-clip store      record the current selection (called by the watcher)
+#   expressive-clip copy <id>  put entry <id> back on the clipboard
+#   expressive-clip clear      wipe the history
+#   expressive-clip list       print the index (id \t kind \t preview)
+#
+# Storage: $XDG_STATE_HOME/expressive/clipboard/
+#   <id>.entry   raw payload (utf-8 text, or PNG bytes)
+#   <id>.meta    "text" | "image"
+#   index        newest-first list, rebuilt on every change; watched by the shell
+#
+# Deliberately NOT using `set -e` / `pipefail`: `head -c` closing a pipe early
+# would abort the whole run. Errors are handled inline instead.
+set -u
+
+DIR="${XDG_STATE_HOME:-$HOME/.local/state}/expressive/clipboard"
+MAX=15
+mkdir -p "$DIR"
+
+# wl-paste can block forever if the offering client vanished mid-copy — cap it.
+wlp() { timeout 3 wl-paste "$@"; }
+
+kind_of() {
+    # $1 = entry id. Trust .meta; if missing, sniff the payload.
+    local m="$DIR/$1.meta" k=""
+    [ -f "$m" ] && k=$(cat "$m" 2>/dev/null)
+    if [ -z "$k" ]; then
+        if [ "$(head -c 4 "$DIR/$1.entry" 2>/dev/null | tr -d '\0')" = $'\x89PNG' ]; then
+            k=image
+        else
+            k=text
+        fi
+        printf '%s\n' "$k" > "$m" 2>/dev/null || true
+    fi
+    printf '%s' "$k"
+}
+
+rebuild_index() {
+    local tmp="$DIR/.index.$$"
+    : > "$tmp"
+    local n=0 f id kind prev
+    while IFS= read -r f; do
+        [ -f "$f" ] || continue
+        id=${f##*/}; id=${id%.entry}
+        n=$((n + 1))
+        if [ "$n" -gt "$MAX" ]; then
+            rm -f "$f" "$DIR/$id.meta"
+            continue
+        fi
+        kind=$(kind_of "$id")
+        if [ "$kind" = image ]; then
+            prev=""
+        else
+            # read at most 200 bytes straight from the file (no upstream pipe to
+            # break), strip NULs and fold whitespace
+            prev=$(head -c 200 "$f" 2>/dev/null | tr -d '\0' | tr '\r\n\t' '   ')
+        fi
+        printf '%s\t%s\t%s\n' "$id" "$kind" "$prev" >> "$tmp"
+    done < <(ls -1t "$DIR"/*.entry 2>/dev/null)
+    mv -f "$tmp" "$DIR/index" 2>/dev/null || rm -f "$tmp"
+}
+
+store() {
+    exec 9>"$DIR/.lock"
+    flock -w 5 9 || exit 0
+
+    local types base ts
+    types=$(wlp --list-types 2>/dev/null) || exit 0
+    [ -n "$types" ] || exit 0
+
+    ts=$(date +%s%N)
+    base="$DIR/$ts"
+
+    if printf '%s\n' "$types" | grep -qi '^image/png'; then
+        if ! wlp --type image/png > "$base.entry" 2>/dev/null || [ ! -s "$base.entry" ]; then
+            rm -f "$base.entry"; exit 0
+        fi
+        echo image > "$base.meta"
+    else
+        if ! wlp --no-newline > "$base.entry" 2>/dev/null \
+            || [ ! -s "$base.entry" ] \
+            || ! grep -q '[^[:space:]]' "$base.entry"; then
+            rm -f "$base.entry"; exit 0
+        fi
+        echo text > "$base.meta"
+    fi
+
+    # de-dupe: drop any older entry with identical content, so re-copying an old
+    # item just floats it back to the top
+    local e
+    for e in "$DIR"/*.entry; do
+        [ -f "$e" ] || continue
+        [ "$e" = "$base.entry" ] && continue
+        if cmp -s "$e" "$base.entry"; then
+            rm -f "$e" "${e%.entry}.meta"
+        fi
+    done
+
+    rebuild_index
+}
+
+copy() {
+    local id="${1:-}"
+    [ -n "$id" ] || { echo "usage: expressive-clip copy <id>" >&2; exit 2; }
+    local f="$DIR/$id.entry"
+    [ -f "$f" ] || { echo "no such entry: $id" >&2; exit 1; }
+    if [ "$(kind_of "$id")" = image ]; then
+        wl-copy --type image/png < "$f"
+    else
+        wl-copy < "$f"
+    fi
+}
+
+clear_all() {
+    rm -f "$DIR"/*.entry "$DIR"/*.meta
+    : > "$DIR/index"
+}
+
+case "${1:-}" in
+    watch)
+        # single-instance: hold an exclusive lock for the watcher's lifetime
+        # (exec keeps fd 8 open, so the lock releases only when it dies)
+        exec 8>"$DIR/.watcher.lock"
+        flock -n 8 || { echo "expressive-clip: watcher already running" >&2; exit 0; }
+        exec wl-paste --watch "$0" store ;;
+    store)  store ;;
+    copy)   copy "${2:-}" ;;
+    clear)  clear_all ;;
+    list)   cat "$DIR/index" 2>/dev/null || true ;;
+    *)      echo "usage: expressive-clip {watch|store|copy <id>|clear|list}" >&2; exit 2 ;;
+esac

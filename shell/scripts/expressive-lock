@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# expressive-lock — bridge logind Lock/Unlock/sleep to the expressive Quickshell
+# session lock (`ipc call lock {lock,unlock}`).
+#
+#   expressive-lock lock      lock now
+#   expressive-lock unlock    unlock now
+#   expressive-lock monitor   follow logind signals (started by the shell)
+set -u
+
+ipc() { qs -c expressive ipc call lock "$1" 2>/dev/null || true; }
+
+case "${1:-monitor}" in
+    lock)   ipc lock ;;
+    unlock) ipc unlock ;;
+    monitor)
+        command -v dbus-monitor >/dev/null 2>&1 || exit 0
+
+        # single instance — the shell restarts us on every reload
+        exec 8>"${XDG_RUNTIME_DIR:-/tmp}/expressive-lock.lock"
+        flock -n 8 || exit 0
+
+        # run dbus-monitor as a coproc so we can kill it when we're terminated
+        coproc DM { exec dbus-monitor --system \
+            "type='signal',interface='org.freedesktop.login1.Session',member='Lock'" \
+            "type='signal',interface='org.freedesktop.login1.Session',member='Unlock'" \
+            "type='signal',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'" \
+            2>/dev/null; }
+        trap 'kill "$DM_PID" 2>/dev/null' EXIT INT TERM
+
+        while IFS= read -r line <&"${DM[0]}"; do
+            case "$line" in
+                *"member=Lock"*)   ipc lock ;;
+                *"member=Unlock"*) ipc unlock ;;
+                *"member=PrepareForSleep"*)
+                    IFS= read -r arg <&"${DM[0]}" || arg=""
+                    case "$arg" in *true*) ipc lock ;; esac
+                    ;;
+            esac
+        done
+        ;;
+    *)  echo "usage: expressive-lock {lock|unlock|monitor}" >&2; exit 2 ;;
+esac

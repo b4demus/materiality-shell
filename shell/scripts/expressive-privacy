@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# expressive-privacy — the camera/microphone gate for the "expressive" shell.
+#
+#   expressive-privacy camera allow|block
+#   expressive-privacy camera apply            # apply whatever settings.json says
+#   expressive-privacy camera status           # -> "<device count> <ok|noperm|nodev>"
+#   expressive-privacy mic   on|off|toggle
+#   expressive-privacy mic   status            # -> "on" | "off" | "n/a"
+#
+# Camera: there is no user-space "disable" API, so we take away read/exec on the
+#   V4L2 device nodes. That works when the shell can chmod them (they are ours,
+#   or a udev rule hands them to us); otherwise it reports "noperm" and the UI
+#   says so. The preference is still stored either way.
+# Mic: mutes / unmutes the default PipeWire source via wpctl — every app then
+#   captures silence, which is the practical equivalent of "off".
+
+set -u
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/expressive"
+SETTINGS="$STATE_DIR/settings.json"
+
+# ---------------------------------------------------------------- camera -----
+_cam_devices() { ls /dev/video* 2>/dev/null; }
+
+_cam_apply() {
+    # $1 = allow | block
+    local mode="$1" rc=2 d          # rc 2 = "no devices seen at all"
+    for d in $(_cam_devices); do
+        [ "$rc" = 2 ] && rc=0
+        if [ "$mode" = block ]; then
+            chmod a-rwx "$d" 2>/dev/null || rc=1
+        else
+            chmod u+rw,g+rw "$d" 2>/dev/null || rc=1
+        fi
+    done
+    return $rc
+}
+
+_cam_pref() {
+    # echoes "true" / "false"; defaults to true
+    if command -v python3 >/dev/null 2>&1 && [ -f "$SETTINGS" ]; then
+        python3 - "$SETTINGS" <<'PY' 2>/dev/null || echo true
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    print("false" if d.get("privacy", {}).get("camera", True) is False else "true")
+except Exception:
+    print("true")
+PY
+    else
+        echo true
+    fi
+}
+
+camera() {
+    case "${1:-apply}" in
+        allow) _cam_apply allow ;;
+        block) _cam_apply block ;;
+        apply)
+            if [ "$(_cam_pref)" = false ]; then _cam_apply block; else _cam_apply allow; fi
+            ;;
+        status)
+            local n; n=$(_cam_devices | wc -l | tr -d ' ')
+            if [ "$n" = 0 ]; then echo "0 nodev"; return; fi
+            # can we chmod the first one?
+            local first; first=$(_cam_devices | head -n1)
+            if [ -w "$first" ] || chmod "$(stat -c '%a' "$first" 2>/dev/null || echo 660)" "$first" 2>/dev/null; then
+                echo "$n ok"
+            else
+                echo "$n noperm"
+            fi
+            ;;
+        *) echo "usage: expressive-privacy camera allow|block|apply|status" >&2; exit 2 ;;
+    esac
+}
+
+# ------------------------------------------------------------------- mic -----
+_have_wpctl() { command -v wpctl >/dev/null 2>&1; }
+
+mic() {
+    _have_wpctl || { echo "n/a"; return 3; }
+    case "${1:-status}" in
+        on)     wpctl set-mute @DEFAULT_AUDIO_SOURCE@ 0 ;;
+        off)    wpctl set-mute @DEFAULT_AUDIO_SOURCE@ 1 ;;
+        toggle) wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle ;;
+        status)
+            if wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null | grep -q MUTED
+            then echo off; else echo on; fi
+            ;;
+        *) echo "usage: expressive-privacy mic on|off|toggle|status" >&2; exit 2 ;;
+    esac
+}
+
+case "${1:-}" in
+    camera) shift; camera "$@" ;;
+    mic)    shift; mic "$@" ;;
+    *) echo "usage: expressive-privacy {camera|mic} ..." >&2; exit 2 ;;
+esac

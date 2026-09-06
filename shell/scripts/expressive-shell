@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# expressive-shell — launch fish for interactive terminals, fall back to bash if
+# fish isn't installed yet. Pointed at by alacritty's `[terminal] shell`.
+if command -v fish >/dev/null 2>&1; then
+    exec fish "$@"
+fi
+exec /bin/bash "$@"

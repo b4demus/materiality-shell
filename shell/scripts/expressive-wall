@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# expressive-wall [--catalog-only] <image>
+# Sets the wallpaper for the "expressive" Quickshell shell, re-themes the palette
+# (via expressive-theme, honouring ~/.local/state/expressive/scheme), and
+# remembers the image in the personal catalog (~/.local/share/expressive/wallpapers/).
+set -euo pipefail
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/expressive"
+CATALOG="${XDG_DATA_HOME:-$HOME/.local/share}/expressive/wallpapers"
+
+mkdir -p "$STATE_DIR" "$CATALOG"
+
+catalog_only=0
+if [[ "${1:-}" == "--catalog-only" ]]; then
+    catalog_only=1
+    shift
+fi
+
+if [[ $# -lt 1 ]]; then
+    echo "usage: expressive-wall [--catalog-only] <image>" >&2
+    exit 2
+fi
+
+img="$(realpath -e -- "$1")" || { echo "no such file: $1" >&2; exit 1; }
+
+case "$(file -Lb --mime-type -- "$img")" in
+    image/*) ;;
+    *) echo "not an image: $img" >&2; exit 1 ;;
+esac
+
+# 1. wallpaper path -> state file (Wallpaper.qml watches this).
+# --catalog-only skips this: a per-monitor assignment files the image in the
+# catalog but must not steal the palette from the primary wallpaper.
+if [[ $catalog_only -eq 0 ]]; then
+    printf '%s\n' "$img" > "$STATE_DIR/wallpaper"
+fi
+
+# 2. remember it in the personal catalog (unless it already lives there)
+if [[ "$(dirname -- "$img")" != "$CATALOG" ]]; then
+    have=0
+    for f in "$CATALOG"/*; do
+        [[ -e "$f" ]] || continue
+        [[ "$(realpath -e -- "$f" 2>/dev/null)" == "$img" ]] && { have=1; break; }
+    done
+    if [[ $have -eq 0 ]]; then
+        base="$(basename -- "$img")"
+        link="$CATALOG/$base"
+        if [[ -e "$link" ]]; then
+            link="$CATALOG/${base%.*}-$(printf '%s' "$img" | cksum | cut -d' ' -f1).${base##*.}"
+        fi
+        ln -sf -- "$img" "$link"
+    fi
+fi
+
+# 3. palette + niri focus ring <- expressive-theme (mode from state/scheme)
+if [[ $catalog_only -eq 1 ]]; then
+    exit 0
+fi
+exec "$(dirname -- "$(realpath -e -- "$0")")/expressive-theme"

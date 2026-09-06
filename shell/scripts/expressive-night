@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""expressive-night — night light (display colour temperature) for the shell.
+
+niri implements wlr-gamma-control, so a real gamma client changes the actual
+output colour ramps — this is not a tinted overlay drawn over the UI.
+
+Backends, in order of preference:
+  gammastep   (-P -m wayland)  supports geo/manual scheduling natively
+  wlsunset                     same idea, smaller
+
+Exactly one backend process is owned at a time, tracked by a pidfile, so
+re-applying is idempotent.
+
+Usage:
+  expressive-night status                 JSON: backend availability + state
+  expressive-night apply '<json>'         start/stop to match the given config
+  expressive-night off                    stop and restore neutral gamma
+
+Config JSON keys:
+  enabled          bool
+  temperature      night temperature in K (1700..6500)
+  dayTemperature   daytime temperature in K
+  schedule         "off" | "manual" | "sunset" | "custom"
+  start / end      "HH:MM" for schedule == "custom"
+  latitude / longitude  floats for schedule == "sunset"
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "expressive"
+PIDFILE = STATE / "nightlight.pid"
+CFGFILE = STATE / "nightlight.json"
+
+
+def backend() -> str | None:
+    for b in ("gammastep", "wlsunset"):
+        if shutil.which(b):
+            return b
+    return None
+
+
+def running_pid() -> int | None:
+    try:
+        pid = int(PIDFILE.read_text().strip())
+    except (OSError, ValueError):
+        return None
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return None
+    # Make sure it is still one of ours and not a recycled pid.
+    try:
+        comm = Path(f"/proc/{pid}/comm").read_text().strip()
+    except OSError:
+        return None
+    return pid if comm in ("gammastep", "wlsunset") else None
+
+
+def stop() -> None:
+    pid = running_pid()
+    if pid:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    PIDFILE.unlink(missing_ok=True)
+
+
+def clamp(v, lo, hi):
+    return max(lo, min(hi, v))
+
+
+def build_cmd(cfg: dict, bin_name: str) -> list[str] | None:
+    night = int(clamp(int(cfg.get("temperature", 4000)), 1000, 6500))
+    day = int(clamp(int(cfg.get("dayTemperature", 6500)), 1000, 6500))
+    schedule = cfg.get("schedule", "manual")
+    lat = float(cfg.get("latitude", 0.0))
+    lon = float(cfg.get("longitude", 0.0))
+    start = str(cfg.get("start", "20:00"))
+    end = str(cfg.get("end", "07:00"))
+
+    if bin_name == "gammastep":
+        cmd = ["gammastep", "-P", "-m", "wayland"]
+        if schedule == "manual":
+            # One-shot constant temperature, held until we kill it.
+            return cmd + ["-O", str(night)]
+        if schedule == "sunset":
+            return cmd + ["-l", f"{lat}:{lon}", "-t", f"{day}:{night}"]
+        if schedule == "custom":
+            # gammastep only takes fixed clock times through a config file,
+            # so generate one with the user's start/end as the dusk/dawn edges.
+            conf = STATE / "gammastep.conf"
+            conf.write_text(
+                "[general]\n"
+                f"temp-day={day}\n"
+                f"temp-night={night}\n"
+                f"dawn-time={end}\n"
+                f"dusk-time={start}\n"
+                "adjustment-method=wayland\n"
+            )
+            return cmd + ["-c", str(conf)]
+        return None
+
+    if bin_name == "wlsunset":
+        cmd = ["wlsunset", "-t", str(night), "-T", str(max(day, night + 1))]
+        if schedule == "manual":
+            # Force permanent night: a sunrise/sunset pair that never flips.
+            return cmd + ["-S", "00:00", "-s", "23:59"]
+        if schedule == "custom":
+            return cmd + ["-S", end, "-s", start]
+        if schedule == "sunset":
+            return cmd + ["-l", str(lat), "-L", str(lon)]
+        return None
+    return None
+
+
+def apply(cfg: dict) -> int:
+    STATE.mkdir(parents=True, exist_ok=True)
+    CFGFILE.write_text(json.dumps(cfg, indent=2))
+    stop()
+
+    if not cfg.get("enabled") or cfg.get("schedule") == "off":
+        return 0
+
+    b = backend()
+    if not b:
+        print("no gamma backend installed (need gammastep or wlsunset)", file=sys.stderr)
+        return 3
+
+    cmd = build_cmd(cfg, b)
+    if not cmd:
+        return 0
+    proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            start_new_session=True)
+    PIDFILE.write_text(str(proc.pid))
+    return 0
+
+
+def status() -> dict:
+    b = backend()
+    cfg = {}
+    try:
+        cfg = json.loads(CFGFILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {
+        "backend": b or "",
+        "available": bool(b),
+        "running": running_pid() is not None,
+        "pid": running_pid() or 0,
+        "config": cfg,
+        "installHint": "sudo dnf install gammastep",
+    }
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] == "status":
+        print(json.dumps(status(), indent=2))
+        return 0
+    if argv[0] == "off":
+        stop()
+        return 0
+    if argv[0] == "apply":
+        return apply(json.loads(argv[1]) if len(argv) > 1 else {})
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

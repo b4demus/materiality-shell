@@ -1,0 +1,22 @@
+{
+    "name": "rose-pine",
+    "label": "Rosé Pine",
+    "dark": {
+        "bg": "#191724",
+        "fg": "#e0def4",
+        "primary": "#ebbcba",
+        "secondary": "#c4a7e7",
+        "tertiary": "#9ccfd8",
+        "error": "#eb6f92",
+        "accents": ["#eb6f92", "#31748f", "#f6c177", "#9ccfd8", "#c4a7e7", "#ebbcba", "#524f67"]
+    },
+    "light": {
+        "bg": "#faf4ed",
+        "fg": "#575279",
+        "primary": "#d7827e",
+        "secondary": "#907aa9",
+        "tertiary": "#56949f",
+        "error": "#b4637a",
+        "accents": ["#b4637a", "#286983", "#ea9d34", "#56949f", "#907aa9", "#d7827e", "#9893a5"]
+    }
+}
