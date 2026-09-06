@@ -26,7 +26,7 @@ function fish_prompt
     end
     echo ''
 
-    # ── line 2: kaomoji · time · arrow ─────────────────────────────────
+    # ── line 2: kaomoji · last-command time · arrow ───────────────────
     # success → the Material You accent (primary); failure → red
     set -l mood
     if test $last -eq 0
@@ -37,8 +37,10 @@ function fish_prompt
 
     set_color $mood
     echo -n (__e_kaomoji $last)' '
-    set_color brblack
-    echo -n (date '+%H:%M:%S')' '
+    if test -n "$CMD_DURATION"; and test $CMD_DURATION -gt 1500
+        set_color yellow
+        echo -n '⏱ '(__e_fmt_ms $CMD_DURATION)' '
+    end
     set_color $mood
     echo -n '❯ '
     set_color normal
