@@ -9,8 +9,10 @@ import "root:/components"
 import "root:/services"
 
 // The lock UI itself (shared by the real WlSessionLockSurface and the preview).
-// Solid tonal fill that follows the active scheme, stacked clock, quick-settings
-// tiles and a PAM auth card with Pixel-style dot masking.
+// One centred column: stacked clock, date, the password field, session actions.
+// The password is masked with Material shapes rather than dots — each keystroke
+// springs a different silhouette in and settles it from the accent to a muted
+// tone, the way recent Android does it.
 Item {
     id: root
 
@@ -57,7 +59,7 @@ Item {
                 pwInput.clear()
                 root.unlocked()
             } else {
-                root.errorText = "Incorrect password"
+                root.errorText = "Wrong password"
                 pwInput.clear()
                 shake.restart()
             }
@@ -69,45 +71,39 @@ Item {
         }
     }
 
-    component LockTile: Rectangle {
-        id: tile
+    // A round, icon-only session action.
+    component LockAction: Rectangle {
+        id: act
         property string glyph: ""
-        property string title: ""
-        property string sub: ""
         signal activated()
 
-        height: 58
-        radius: 20
-        color: Colors.surfaceContainerHighest
+        implicitWidth: 52
+        implicitHeight: 52
+        radius: height / 2
+        color: Colors.surfaceContainerHigh
 
-        // Icon only — the POWER / SESSION / REBOOT / SLEEP wording is gone.
-        Rectangle {
+        MIcon {
             anchors.centerIn: parent
-            width: 34; height: 34; radius: 17
-            color: Colors.primaryContainer
-            MIcon {
-                anchors.centerIn: parent
-                name: tile.glyph
-                size: 19
-                fill: 1
-                color: Colors.on.primaryContainer
-            }
+            name: act.glyph
+            size: 21
+            fill: 1
+            color: Colors.on.surfaceVariant
         }
 
         Rectangle {
             anchors.fill: parent
             radius: parent.radius
             color: Colors.on.surface
-            opacity: tma.pressed ? Appearance.statePress
-                     : tma.containsMouse ? Appearance.stateHover : 0
+            opacity: ama.pressed ? Appearance.statePress
+                     : ama.containsMouse ? Appearance.stateHover : 0
             Behavior on opacity { NumberAnimation { duration: Motion.durShort } }
         }
         MouseArea {
-            id: tma
+            id: ama
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: tile.activated()
+            onClicked: act.activated()
         }
     }
 
@@ -118,218 +114,206 @@ Item {
         Keys.forwardTo: [pwInput]
         Component.onCompleted: pwInput.forceActiveFocus()
 
-        Row {
+        Column {
             anchors.centerIn: parent
-            spacing: 76
+            spacing: Appearance.space.xl
 
             // ===== clock =====
             Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 10
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: -18
 
                 Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
                     text: Qt.formatDateTime(clock.date, "HH")
                     color: Colors.primary
                     font.family: Appearance.clockFamily
-                    font.pixelSize: 150
+                    font.pixelSize: 132
                     font.weight: Appearance.font.weightMedium
-                    height: 118
-                    verticalAlignment: Text.AlignVCenter
                 }
                 Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
                     text: Qt.formatDateTime(clock.date, "mm")
                     color: Colors.primary
+                    opacity: 0.55
                     font.family: Appearance.clockFamily
-                    font.pixelSize: 150
+                    font.pixelSize: 132
                     font.weight: Appearance.font.weightMedium
-                    height: 118
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                Rectangle {
-                    width: dateLabel.implicitWidth + Appearance.space.l * 2
-                    height: 30
-                    radius: Appearance.radius.full
-                    color: Colors.surfaceContainerHigh
-                    Text {
-                        id: dateLabel
-                        anchors.centerIn: parent
-                        text: Qt.formatDateTime(clock.date, "dddd, MMM d").toUpperCase()
-                        color: Colors.on.surfaceVariant
-                        font.family: Appearance.fontFamily
-                        font.pixelSize: Appearance.font.labelMedium
-                        font.weight: Appearance.font.weightMedium
-                        font.letterSpacing: 1
-                    }
                 }
             }
 
-            // ===== quick settings + auth =====
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 420
-                spacing: Appearance.space.m
-
-                Grid {
-                    id: grid
-                    width: parent.width
-                    columns: 2
-                    columnSpacing: Appearance.space.m
-                    rowSpacing: Appearance.space.m
-                    readonly property real tileW: (width - columnSpacing) / 2
-
-                    LockTile {
-                        width: grid.tileW
-                        glyph: "power_settings_new"; title: "POWER"; sub: "SHUT DOWN"
-                        onActivated: root.run(["systemctl", "poweroff"])
-                    }
-                    LockTile {
-                        width: grid.tileW
-                        glyph: "logout"; title: "SESSION"; sub: "NIRI"
-                        onActivated: root.run(["niri", "msg", "action", "quit", "-s"])
-                    }
-                    LockTile {
-                        width: grid.tileW
-                        glyph: "restart_alt"; title: "REBOOT"; sub: "RESTART"
-                        onActivated: root.run(["systemctl", "reboot"])
-                    }
-                    LockTile {
-                        width: grid.tileW
-                        glyph: "bedtime"; title: "SLEEP"; sub: "SUSPEND"
-                        onActivated: root.run(["systemctl", "suspend"])
-                    }
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: dateLabel.implicitWidth + Appearance.space.l * 2
+                height: 30
+                radius: Appearance.radius.full
+                color: Colors.surfaceContainerHigh
+                Text {
+                    id: dateLabel
+                    anchors.centerIn: parent
+                    text: Qt.formatDateTime(clock.date, "dddd, MMM d").toUpperCase()
+                    color: Colors.on.surfaceVariant
+                    font.family: Appearance.fontFamily
+                    font.pixelSize: Appearance.font.labelMedium
+                    font.weight: Appearance.font.weightMedium
+                    font.letterSpacing: 1
                 }
+            }
 
-                // ---- auth card ----
+            // ===== password =====
+            Column {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Appearance.space.s
+
                 Rectangle {
-                    id: card
-                    width: parent.width
-                    implicitHeight: cardCol.implicitHeight + Appearance.space.l * 2
-                    height: implicitHeight
-                    radius: Appearance.radius.xl
+                    id: field
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 380
+                    height: 60
+                    radius: height / 2
                     color: Colors.surfaceContainerHigh
+                    border.width: 2
+                    border.color: root.errorText !== "" ? Colors.error
+                                  : pwInput.activeFocus ? Colors.primary : "transparent"
+                    Behavior on border.color { ColorAnimation { duration: Motion.durShort } }
 
                     transform: Translate { id: shakeT }
                     SequentialAnimation {
                         id: shake
-                        NumberAnimation { target: shakeT; property: "x"; to: 10; duration: 45 }
-                        NumberAnimation { target: shakeT; property: "x"; to: -10; duration: 45 }
+                        NumberAnimation { target: shakeT; property: "x"; to: 11; duration: 45 }
+                        NumberAnimation { target: shakeT; property: "x"; to: -11; duration: 45 }
                         NumberAnimation { target: shakeT; property: "x"; to: 6; duration: 45 }
                         NumberAnimation { target: shakeT; property: "x"; to: 0; duration: 45 }
                     }
 
-                    Column {
-                        id: cardCol
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.margins: Appearance.space.l
-                        spacing: Appearance.space.m
+                    // The real input — invisible, it only collects keystrokes.
+                    TextInput {
+                        id: pwInput
+                        anchors.fill: parent
+                        opacity: 0
+                        echoMode: TextInput.Password
+                        selectByMouse: false
+                        enabled: !root.busy
+                        activeFocusOnPress: true
+                        onAccepted: root.submit()
+                        onTextChanged: if (root.errorText !== "") root.errorText = ""
+                    }
 
-                        // password field
-                        Rectangle {
-                            width: parent.width
-                            height: 46
-                            radius: Appearance.radius.full
-                            color: Colors.surfaceContainerHighest
-                            border.width: pwInput.activeFocus ? 2 : 0
-                            border.color: Colors.primary
+                    // Idle hint — a lock that opens the moment anything is typed.
+                    MIcon {
+                        anchors.centerIn: parent
+                        visible: pwInput.text.length === 0 && !root.busy
+                        name: "lock"
+                        size: 22
+                        fill: 1
+                        color: Colors.on.surfaceVariant
+                        opacity: 0.7
+                    }
 
-                            TextInput {
-                                id: pwInput
-                                anchors.fill: parent
-                                anchors.leftMargin: Appearance.space.l
-                                anchors.rightMargin: Appearance.space.l
-                                horizontalAlignment: TextInput.AlignHCenter
-                                verticalAlignment: TextInput.AlignVCenter
-                                color: Colors.on.surface
-                                font.family: Appearance.clockFamily
-                                font.pixelSize: 20
-                                font.letterSpacing: 4
-                                echoMode: TextInput.Password
-                                passwordCharacter: "●"  // ● solid dot, like recent Android; masks immediately
-                                selectByMouse: false
-                                clip: true
-                                enabled: !root.busy
-                                cursorVisible: activeFocus && text.length > 0
-                                onAccepted: root.submit()
-                            }
-                        }
+                    // Masked characters, as Material shapes.
+                    Row {
+                        id: shapesRow
+                        anchors.centerIn: parent
+                        spacing: 10
+                        visible: pwInput.text.length > 0
 
-                        // footer
-                        Item {
-                            width: parent.width
-                            height: 40
+                        readonly property var kinds: [
+                            "clover", "diamond", "burst", "pill", "pentagon",
+                            "flower", "triangle", "circle", "square"
+                        ]
 
-                            Text {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: (Quickshell.env("USER") || "user").toUpperCase()
-                                color: Colors.on.surfaceVariant
-                                font.family: Appearance.fontFamily
-                                font.pixelSize: Appearance.font.labelMedium
-                                font.weight: Appearance.font.weightMedium
-                                font.letterSpacing: 1
-                            }
+                        Repeater {
+                            model: Math.min(pwInput.text.length, 12)
+                            delegate: Item {
+                                id: cell
+                                required property int index
+                                width: 18
+                                height: 18
 
-                            Rectangle {
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 150; height: 40
-                                radius: Appearance.radius.full
-                                color: Colors.primary
-                                opacity: (root.busy || pwInput.text.length === 0) ? 0.55 : 1
-                                Behavior on opacity { NumberAnimation { duration: Motion.durShort } }
-
-                                Row {
+                                MShape {
+                                    id: glyph
                                     anchors.centerIn: parent
-                                    spacing: Appearance.space.s
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: root.busy ? "CHECKING" : "UNLOCK"
-                                        color: Colors.on.primary
-                                        font.family: Appearance.fontFamily
-                                        font.pixelSize: Appearance.font.labelMedium
-                                        font.weight: Appearance.font.weightBold
-                                        font.letterSpacing: 1
-                                    }
-                                    MIcon {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        visible: !root.busy
-                                        name: "arrow_forward"
-                                        size: 16
-                                        color: Colors.on.primary
-                                    }
-                                }
+                                    size: 18
+                                    shape: shapesRow.kinds[cell.index % shapesRow.kinds.length]
+                                    // a deterministic tilt per slot, so a row of
+                                    // them reads as hand-placed rather than stamped
+                                    rotation_: (cell.index * 47) % 360
+                                    color: Colors.primary
+                                    scale: 0
+                                    opacity: 0
 
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: parent.radius
-                                    color: Colors.on.primary
-                                    opacity: ubma.pressed ? Appearance.statePress
-                                             : ubma.containsMouse ? Appearance.stateHover : 0
-                                    Behavior on opacity { NumberAnimation { duration: Motion.durShort } }
-                                }
-                                MouseArea {
-                                    id: ubma
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.submit()
+                                    Component.onCompleted: appear.start()
+
+                                    ParallelAnimation {
+                                        id: appear
+                                        NumberAnimation {
+                                            target: glyph; property: "opacity"
+                                            to: 1; duration: 90
+                                        }
+                                        // the overshoot is the Pixel feel
+                                        NumberAnimation {
+                                            target: glyph; property: "scale"
+                                            to: 1; duration: 340
+                                            easing.type: Easing.OutBack
+                                            easing.overshoot: 2.6
+                                        }
+                                        // flashes in the accent, then settles
+                                        ColorAnimation {
+                                            target: glyph; property: "color"
+                                            from: Colors.primary
+                                            to: Colors.on.surfaceVariant
+                                            duration: 900
+                                            easing.type: Easing.OutCubic
+                                        }
+                                    }
                                 }
                             }
-                        }
-
-                        Text {
-                            width: parent.width
-                            visible: root.errorText !== ""
-                            text: root.errorText
-                            color: Colors.error
-                            font.family: Appearance.fontFamily
-                            font.pixelSize: Appearance.font.labelSmall
-                            font.weight: Appearance.font.weightMedium
                         }
                     }
+
+                    // Checking — the shapes pulse rather than a spinner appearing.
+                    SequentialAnimation on opacity {
+                        running: root.busy
+                        loops: Animation.Infinite
+                        alwaysRunToEnd: true
+                        NumberAnimation { to: 0.55; duration: 420; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1.0;  duration: 420; easing.type: Easing.InOutSine }
+                    }
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    height: 16
+                    text: root.errorText
+                    color: Colors.error
+                    opacity: root.errorText !== "" ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: Motion.durShort } }
+                    font.family: Appearance.fontFamily
+                    font.pixelSize: Appearance.font.labelSmall
+                    font.weight: Appearance.font.weightMedium
+                }
+            }
+
+            // ===== session actions =====
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Appearance.space.m
+
+                LockAction {
+                    glyph: "bedtime"
+                    onActivated: root.run(["systemctl", "suspend"])
+                }
+                LockAction {
+                    glyph: "logout"
+                    onActivated: root.run(["niri", "msg", "action", "quit", "-s"])
+                }
+                LockAction {
+                    glyph: "restart_alt"
+                    onActivated: root.run(["systemctl", "reboot"])
+                }
+                LockAction {
+                    glyph: "power_settings_new"
+                    onActivated: root.run(["systemctl", "poweroff"])
                 }
             }
         }
