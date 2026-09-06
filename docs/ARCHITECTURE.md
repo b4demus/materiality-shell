@@ -59,14 +59,16 @@ config/              the design system AND the settings store — depends on not
   Motion.qml           spring presets, scaled by the animation settings
   Colors.qml           M3 colour roles, fed by the palette engine
 services/            managers: one per system integration, all importing config/
-  NiriConf  Displays  NightLight  Power  Wifi  Net  Bt  Audio  Apps
+  NiriConf  Displays  NightLight  Power  Wifi  Net  Bt  Audio  Apps  Privacy
   Shortcuts  Profiles  Wallpaper  Theme  SysInfo  Niri  Bat  Brightness  Bus
+  Clipboard  Notifs  TimeTools
 components/          M3 Expressive widgets (MCard, MSwitch, MSelect, MSliderRow, …)
-modules/settings/    the settings app: SettingsWindow, Page, DesktopPreview + pages/
+modules/settings/    the settings app: SettingsWindow + Page + pages/
 modules/bar/         Bar (any screen edge) + BarModule dispatcher + the modules
 modules/…            background, osd, notifications, launcher, controlcenter, lock
 theme/               matugen template + curated schemes
-scripts/             expressive-theme · -wall · -niri · -night · -idle · -settings
+scripts/             expressive-theme · -wall · -niri · -night · -idle · -lock ·
+                     -clip · -privacy · -settings · -shell
 ```
 
 Two rules keep it untangled:
@@ -78,17 +80,10 @@ Two rules keep it untangled:
 ### How a setting reaches the system
 
 `Settings.set("niri.gapsInner", 12)` reassigns the whole document, so every
-binding that read it re-evaluates (the live preview included) and `changed`
+binding that read it re-evaluates and `changed`
 fires. `NiriConf` hears it, debounces, and writes the KDL. Managers are
 instantiated eagerly in `shell.qml` — QML singletons are lazy, and an applier
 that only exists while its page is open applies nothing.
-
-## Live desktop preview
-
-`modules/settings/DesktopPreview.qml` is a working miniature, not a screenshot:
-it reads the same settings the shell does and multiplies every length by the
-ratio between the widget and the real output. Wallpaper, bar edge/shape/modules,
-niri gaps, corner radius, focus ring, palette and night-light tint are all real.
 
 ## niri integration
 

@@ -143,8 +143,6 @@ Page {
                         }
                     }
                 }
-
-                MDivider { width: parent.width; visible: index < Power.profileList.length - 1 }
             }
         }
     }
@@ -222,43 +220,6 @@ Page {
         width: parent.width
         title: "Buttons"
         icon: "toggle_on"
-
-        MRow {
-            width: parent.width
-            icon: "laptop"
-            title: "When the lid closes"
-
-            MSelect {
-                width: 200
-                model: [
-                    { value: "suspend", label: "Suspend" },
-                    { value: "lock",    label: "Lock only" },
-                    { value: "nothing", label: "Do nothing" }
-                ]
-                value: Settings.val("power.lidClose", "suspend")
-                onPicked: v => Settings.set("power.lidClose", v)
-            }
-        }
-
-        MDivider { width: parent.width }
-
-        MRow {
-            width: parent.width
-            icon: "power_settings_new"
-            title: "Power button"
-
-            MSelect {
-                width: 200
-                model: [
-                    { value: "menu",     label: "Show a menu" },
-                    { value: "suspend",  label: "Suspend" },
-                    { value: "poweroff", label: "Power off" },
-                    { value: "nothing",  label: "Do nothing" }
-                ]
-                value: Settings.val("power.powerButton", "menu")
-                onPicked: v => Settings.set("power.powerButton", v)
-            }
-        }
     }
 
     // ---- battery behaviour ----------------------------------------------------

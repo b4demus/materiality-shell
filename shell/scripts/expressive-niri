@@ -396,6 +396,8 @@ def get_values(doc: Doc) -> dict:
 
     m = re.search(r"geometry-corner-radius\s+([0-9.]+)", doc.dump())
     out["cornerRadius"] = float(m.group(1)) if m else None
+    m = re.search(r"clip-to-geometry\s+(true|false)", doc.dump())
+    out["clipToGeometry"] = (m.group(1) == "true") if m else None
     return out
 
 
@@ -412,8 +414,13 @@ def set_values(doc: Doc, patch: dict) -> None:
             vals = [f"proportion {round(float(v), 5)}" for v in value if 0 < float(v) <= 1]
             doc.replace_block_body("layout/preset-column-widths", vals or ["proportion 0.5"])
             continue
-        if key == "cornerRadius":
-            set_corner_radius(doc, float(value))
+        if key in ("cornerRadius", "clipToGeometry"):
+            cur = get_values(doc)
+            radius = float(value) if key == "cornerRadius" else \
+                float(cur.get("cornerRadius") or 0)
+            clip = bool(value) if key == "clipToGeometry" else \
+                (True if cur.get("clipToGeometry") is None else bool(cur["clipToGeometry"]))
+            set_corner_radius(doc, radius, clip)
             continue
         if key not in SCHEMA:
             continue
@@ -430,14 +437,14 @@ def set_values(doc: Doc, patch: dict) -> None:
             doc.set_scalar(path, name, str(round(float(value), 3)))
 
 
-def set_corner_radius(doc: Doc, radius: float) -> None:
+def set_corner_radius(doc: Doc, radius: float, clip: bool = True) -> None:
     """The shell owns one window-rule that rounds every window to match it."""
     r = round(radius, 1)
     r_txt = str(int(r)) if r == int(r) else str(r)
     body = [
         "window-rule {",
         f"    geometry-corner-radius {r_txt}",
-        "    clip-to-geometry true",
+        f"    clip-to-geometry {'true' if clip else 'false'}",
         "}",
     ]
     text = doc.dump()

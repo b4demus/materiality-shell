@@ -31,7 +31,6 @@ Singleton {
           choices: ["top", "bottom", "left", "right"] },
         { path: "notifications.dnd",         label: "Do not disturb",     kind: "bool" },
         { path: "appearance.animations",     label: "Animations",         kind: "bool" },
-        { path: "appearance.blur",           label: "Blur",               kind: "bool" },
         { path: "niri.gapsInner",            label: "Window gaps",        kind: "int", min: 0, max: 48 },
         { path: "niri.animationsEnabled",    label: "niri animations",    kind: "bool" },
         { path: "nightLight.enabled",        label: "Night light",        kind: "bool" },

@@ -35,7 +35,6 @@ Singleton {
             "density": 1,                   // 0 compact | 1 regular | 2 comfortable
             "radiusScale": 1.0,             // 0.4 .. 1.6
             "transparency": 0.0,            // 0 .. 0.6 of shell surfaces
-            "blur": false,
             "shadows": true,
             "animations": true,
             "animationScale": 1.0,          // 0.5 .. 2.0
@@ -68,7 +67,6 @@ Singleton {
             "padding": 14,
             "radius": 16,
             "transparency": 0.0,
-            "blur": false,
             "shadow": true,
             "iconSize": 18,
             "fontSize": 13,
@@ -98,10 +96,7 @@ Singleton {
         },
         "windows": {
             "openMaximized": false,
-            "defaultFloatWidth": 800,
-            "defaultFloatHeight": 600,
             "clipToGeometry": true,
-            "backdropBlur": false,
             "rules": []                     // [{ appId, title, floating, workspace, opacity }]
         },
         "workspaces": {
@@ -130,7 +125,6 @@ Singleton {
             "position": "top-right",        // top-right | top-left | top-center | bottom-*
             "durationSec": 6,
             "sound": false,
-            "grouping": true,
             "historyLimit": 100,
             "showOnLockscreen": false,
             "perApp": {}                    // { "firefox": false }
@@ -140,8 +134,6 @@ Singleton {
             "screenTimeoutSec": 600,
             "lockTimeoutSec": 900,
             "suspendTimeoutSec": 1800,
-            "lidClose": "suspend",          // suspend | lock | nothing
-            "powerButton": "menu",          // menu | suspend | poweroff | nothing
             "lowBatteryPercent": 15,
             "lowBatteryAction": "notify",   // notify | powersave | suspend
             "dimBeforeSleep": true
@@ -151,8 +143,6 @@ Singleton {
             "terminal": "alacritty",
             "fileManager": "nautilus",
             "editor": "",
-            "launcher": "expressive",
-            "screenshot": "niri",
             "mediaPlayer": ""
         },
         "autostart": [],                    // [{ name, exec, enabled }]

@@ -35,7 +35,6 @@ Page {
         { id: "network",      label: "Network speed", icon: "speed" },
         { id: "vpn",          label: "VPN",           icon: "vpn_lock" },
         { id: "notifications", label: "Notifications", icon: "notifications" },
-        { id: "weather",      label: "Weather",       icon: "cloud" },
         { id: "power",        label: "Power",         icon: "power_settings_new" }
     ]
 

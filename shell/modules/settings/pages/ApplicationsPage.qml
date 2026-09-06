@@ -41,8 +41,6 @@ Page {
 
                     MIcon { name: "chevron_right"; size: 20; color: Colors.on.surfaceVariant }
                 }
-
-                MDivider { width: parent.width; visible: index < Apps.roles.length - 1 }
             }
         }
     }
@@ -64,45 +62,6 @@ Page {
                 width: 220
                 text: Settings.val("apps.terminal", "alacritty")
                 onEdited: t => Settings.set("apps.terminal", t)
-            }
-        }
-
-        MDivider { width: parent.width }
-
-        MRow {
-            width: parent.width
-            icon: "search"
-            title: "Application launcher"
-
-            MSelect {
-                width: 220
-                model: [
-                    { value: "expressive", label: "Built-in launcher", icon: "grid_view" },
-                    { value: "fuzzel",     label: "fuzzel", icon: "search" },
-                    { value: "rofi",       label: "rofi", icon: "search" },
-                    { value: "wofi",       label: "wofi", icon: "search" }
-                ]
-                value: Settings.val("apps.launcher", "expressive")
-                onPicked: v => Settings.set("apps.launcher", v)
-            }
-        }
-
-        MDivider { width: parent.width }
-
-        MRow {
-            width: parent.width
-            icon: "screenshot"
-            title: "Screenshots"
-
-            MSelect {
-                width: 220
-                model: [
-                    { value: "niri",  label: "niri's built-in tool", icon: "crop" },
-                    { value: "grim",  label: "grim + slurp", icon: "screenshot" },
-                    { value: "flameshot", label: "Flameshot", icon: "brush" }
-                ]
-                value: Settings.val("apps.screenshot", "niri")
-                onPicked: v => Settings.set("apps.screenshot", v)
             }
         }
     }

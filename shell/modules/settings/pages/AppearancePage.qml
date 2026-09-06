@@ -200,20 +200,6 @@ Page {
 
         MRow {
             width: parent.width
-            icon: "blur_on"
-            title: "Blur behind panels"
-            subtitle: "Costs GPU time; noticeable in a VM"
-
-            MSwitch {
-                checked: Settings.val("appearance.blur", false)
-                onToggled: c => Settings.set("appearance.blur", c)
-            }
-        }
-
-        MDivider { width: parent.width }
-
-        MRow {
-            width: parent.width
             icon: "layers"
             title: "Shadows"
             subtitle: "Soft drop shadows under floating surfaces"

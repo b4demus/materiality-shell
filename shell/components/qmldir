@@ -1,6 +1,4 @@
 MIcon 1.0 MIcon.qml
-StateLayer 1.0 StateLayer.qml
-MPill 1.0 MPill.qml
 MButton 1.0 MButton.qml
 MSlider 1.0 MSlider.qml
 MWaveSlider 1.0 MWaveSlider.qml

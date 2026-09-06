@@ -33,6 +33,7 @@ Singleton {
         "niri.focusRingWidth":       "focusRingWidth",
         "niri.focusRingEnabled":     "focusRingEnabled",
         "niri.cornerRadius":         "cornerRadius",
+        "windows.clipToGeometry":    "clipToGeometry",
         "niri.focusFollowsMouse":    "focusFollowsMouse",
         "niri.centerFocusedColumn":  "centerFocusedColumn",
         "niri.defaultColumnWidth":   "defaultColumnWidth",

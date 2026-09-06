@@ -106,20 +106,6 @@ Page {
 
         MRow {
             width: parent.width
-            icon: "layers"
-            title: "Group by application"
-            subtitle: "Stack repeated notifications from the same app"
-
-            MSwitch {
-                checked: Settings.val("notifications.grouping", true)
-                onToggled: c => Settings.set("notifications.grouping", c)
-            }
-        }
-
-        MDivider { width: parent.width }
-
-        MRow {
-            width: parent.width
             icon: "volume_up"
             title: "Play a sound"
 

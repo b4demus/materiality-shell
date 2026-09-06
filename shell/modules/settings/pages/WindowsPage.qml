@@ -99,34 +99,6 @@ Page {
         description: "Size used when a window opens floating, or is toggled out of the "
                    + "tiling strip."
 
-        MRow {
-            width: parent.width
-            icon: "width_normal"
-            title: "Default width"
-
-            MStepper {
-                value: Settings.val("windows.defaultFloatWidth", 800)
-                from: 320; to: 3840; stepSize: 40
-                suffix: " px"
-                onChanged: v => Settings.set("windows.defaultFloatWidth", v)
-            }
-        }
-
-        MDivider { width: parent.width }
-
-        MRow {
-            width: parent.width
-            icon: "height"
-            title: "Default height"
-
-            MStepper {
-                value: Settings.val("windows.defaultFloatHeight", 600)
-                from: 240; to: 2160; stepSize: 40
-                suffix: " px"
-                onChanged: v => Settings.set("windows.defaultFloatHeight", v)
-            }
-        }
-
         MDivider { width: parent.width }
 
         MRow {

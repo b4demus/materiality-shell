@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Notifications
 import "root:/config"
@@ -74,6 +75,9 @@ PanelWindow {
             root.remember(n)
             n.tracked = root.showing && root.allowed(n)
 
+            if (n.tracked && Settings.val("notifications.sound", false))
+                chime.running = true
+
             Notifs.add({
                 appName: n.appName || "",
                 summary: n.summary || "",
@@ -81,6 +85,15 @@ PanelWindow {
                 time: Date.now()
             })
         }
+    }
+
+    // Optional alert tone. Only fires for notifications we actually show, so
+    // DND and per-app mutes silence it too.
+    Process {
+        id: chime
+        command: ["sh", "-c",
+            "canberra-gtk-play -i message >/dev/null 2>&1 || " +
+            "paplay /usr/share/sounds/freedesktop/stereo/message.oga >/dev/null 2>&1 || true"]
     }
 
     Column {

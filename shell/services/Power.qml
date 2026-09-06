@@ -74,6 +74,21 @@ Singleton {
             if (p.value === v) Settings.set("power.profile", p.name)
     }
 
+    // The name of the profile that is live right now, "" if we can't tell.
+    function profileName() {
+        for (const p of profileList) if (p.value === profile) return p.name
+        return ""
+    }
+
+    // Apply a profile given by name ("balanced", …). This is what makes
+    // `power.profile` work as a profile/automation field — a patch that sets it
+    // has to actually reach power-profiles-daemon, not just sit in the store.
+    function applyProfileName(name) {
+        if (!name || name === profileName()) return
+        for (const p of profileList)
+            if (p.name === name) { PowerProfiles.profile = p.value; return }
+    }
+
     function profileLabel() {
         for (const p of profileList) if (p.value === profile) return p.label
         return "Unknown"
@@ -171,7 +186,14 @@ Singleton {
     Connections {
         target: Settings
         function onChanged(path, value) {
-            if (String(path).startsWith("power.") || path === "*") idleApply.restart()
+            const p = String(path)
+            if (p.startsWith("power.") || p === "*") idleApply.restart()
+            // A profile/automation patch that carries power.profile has to be
+            // pushed to power-profiles-daemon; setProfile() mirrors the name
+            // back here, and applyProfileName() no-ops when it already matches,
+            // so this can't ping-pong.
+            if (p === "power.profile" || p === "*")
+                root.applyProfileName(Settings.val("power.profile", ""))
         }
     }
 }

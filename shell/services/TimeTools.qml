@@ -40,7 +40,6 @@ Singleton {
         timerDuration = Math.max(0, Math.min(99 * 3600 + 59 * 60 + 59, Math.round(secs)))
         timerRemaining = timerDuration
     }
-    function timerBump(deltaSecs) { timerSetDuration(timerDuration + deltaSecs) }
 
     Timer {
         running: root.timerRunning

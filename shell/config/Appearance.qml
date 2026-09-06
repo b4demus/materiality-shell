@@ -105,7 +105,6 @@ Singleton {
 
     // ---- Surface effects ---------------------------------------------------
     readonly property real surfaceOpacity: 1.0 - Settings.val("appearance.transparency", 0.0)
-    readonly property bool blurEnabled: Settings.val("appearance.blur", false)
     readonly property bool shadowsEnabled: Settings.val("appearance.shadows", true)
 
     // ---- Elevation ----------------------------------------------------------

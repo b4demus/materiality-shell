@@ -57,7 +57,6 @@ Loader {
         case "sysmon":       return vertical ? null : sysmonC
         case "vpn":          return vpnC
         case "notifications": return notifC
-        case "weather":      return weatherC
         case "power":        return powerC
         }
         return null
@@ -122,8 +121,11 @@ Loader {
     Component {
         id: dateC
         BarChip {
+            // Its own clock — TimeTools has no date property, so this chip used
+            // to format `undefined` and render a blank label.
+            SystemClock { id: dateClock; precision: SystemClock.Minutes }
             icon: "calendar_month"
-            label: Qt.formatDate(TimeTools.now, "ddd d MMM")
+            label: Qt.formatDate(dateClock.date, "ddd d MMM")
             onClicked: { Bus.timePopupOpen = false; Bus.calendarOpen = !Bus.calendarOpen }
         }
     }
@@ -303,17 +305,6 @@ Loader {
             fg: Colors.barOnSurface
             onClicked: Settings.toggle("notifications.dnd")
             onRightClicked: Bus.openSettings("notifications")
-        }
-    }
-
-    Component {
-        id: weatherC
-        BarChip {
-            // No network weather source is configured, so this stays a
-            // placeholder rather than pretending to know the forecast.
-            icon: "cloud"
-            label: "—"
-            fg: Colors.barOnSurfaceVariant
         }
     }
 
