@@ -18,8 +18,9 @@ The installer is idempotent and cross-distro: it detects your package manager
 (pacman / dnf / apt / zypper / xbps / apk / emerge), installs what it can,
 downloads the fonts and the cursor, drops the shell into
 `~/.config/quickshell/expressive/`, symlinks the helper scripts into
-`~/.local/bin/`, and installs an example niri config if you don't have one.
-Anything it can't do it prints in plain words.
+`~/.local/bin/`, deploys the fish config and makes fish your login shell, and
+installs an example niri config if you don't have one. Anything it can't do it
+prints in plain words. `--no-shell` keeps your current login shell.
 
 Then either start a niri session (it autostarts) or, from inside one:
 
@@ -41,6 +42,7 @@ expressive-settings          # or  Mod+Ctrl+,
 | **Qt 6** | (pulled in by Quickshell) | Qt Quick + Qt Shader Tools. |
 | **Python 3** | `python3` | the theme / niri / night-light / idle helper scripts. |
 | **fontconfig** | `fc-cache`, `fc-list` | font registration. |
+| **fish** | `fish` | the shell it installs and sets as your login shell (`--no-shell` to skip). |
 | Fonts | Roboto, Roboto Mono, **Material Symbols Rounded**, JetBrains Mono | the installer fetches these; Material Symbols is the one it truly can't run without (every icon is a ligature from it). |
 
 ### Required for full function — installed by default, degrade gracefully if missing
@@ -59,6 +61,7 @@ expressive-settings          # or  Mod+Ctrl+,
 | Notifications from apps | **libnotify** server is provided by the shell | timer/alarm `notify-send` needs `libnotify` installed. |
 | Privilege prompts | a **polkit** authentication agent (`mate-polkit` / `polkit-gnome`) | actions that need root can't prompt. |
 | Screenshots / portals | **xdg-desktop-portal** + **xdg-desktop-portal-gtk** | niri screenshot portal, file dialogs. |
+| Palette-aware fish prompt | **jq** | the fish prompt colours fall back to plain ANSI without it. |
 
 ### Optional
 
@@ -95,6 +98,7 @@ manager). Specifically:
 ```
 ~/.config/quickshell/expressive/     the shell (copied from ./shell/)
 ~/.local/bin/expressive-*             symlinks to shell/scripts/*
+~/.config/fish/                       config.fish + conf.d/ + functions/  (from ./fish/)
 ~/.local/share/fonts/                 Roboto, Roboto Mono, Material Symbols, JetBrains Mono
 ~/.local/share/icons/Bibata-Modern-Classic/   the cursor
 ~/.icons/default/index.theme          makes Bibata the default cursor
@@ -103,8 +107,11 @@ manager). Specifically:
 ~/.config/niri/config.kdl             only if you have none, or pass --niri
 ```
 
-`gsettings` cursor keys are set if `gsettings` exists. An existing shell config
-is moved to `…expressive.bak.<timestamp>` before copying.
+It also runs **`chsh -s $(command -v fish)`** to make fish your login shell
+(prompt for your password; skip with `--no-shell`), and adds fish to
+`/etc/shells` if missing. `gsettings` cursor keys are set if `gsettings`
+exists. An existing shell config or `config.fish` is moved aside to
+`…bak.<timestamp>` before copying.
 
 ### Installer flags
 
@@ -112,8 +119,10 @@ is moved to `…expressive.bak.<timestamp>` before copying.
 ./install.sh --no-packages     don't call the package manager (deps handled by you)
              --no-fonts        skip the font download
              --no-cursor       skip the Bibata download
+             --no-shell        install the fish config but keep your current login shell
              --niri            install niri/config.kdl, backing up any existing one
              -y                answer yes to everything
+./update.sh   [--restart]      pull + redeploy an installed copy (see below)
 ./uninstall.sh [--purge]       remove the shell + symlinks (--purge also drops state)
 ```
 
@@ -168,6 +177,30 @@ paste. `niri validate` is run on every write.
 
 ---
 
+## Shell (fish)
+
+The installer sets **fish** as your login shell and drops a config in
+`~/.config/fish/` that matches the desktop:
+
+* **Two-line prompt** — `path  ⎇git` then `<kaomoji> HH:MM:SS ❯`. Arrow and
+  kaomoji go green on success, red on failure; the path colour is the live
+  `primary` from the Material You palette.
+* **Right prompt** — `⏱ <last cmd duration>` (when > 1.5 s) · `⧗ <session uptime>`.
+* **`fish_greeting`** off; a random kaomoji + date/host instead.
+* **Long-command notifier** — `notify-send` with a kaomoji when a command runs
+  longer than 45 s, so it shows up as one of the shell's own notification cards.
+* **`conf.d/00-expressive-colors.fish`** reads `~/.local/state/expressive/colors.json`
+  with `jq` on every new shell, so `e_primary` / `e_secondary` / … track whatever
+  scheme is active. (Needs `jq`; the 16 ANSI colours are already themed by
+  `expressive-theme`.)
+
+Keep bash? `./install.sh --no-shell` installs the config but leaves your login
+shell alone — run `chsh -s $(command -v fish)` later, or point just your
+terminal at `~/.local/bin/expressive-shell` (execs fish, falls back to bash).
+`./update.sh` refreshes the fish files but never changes your login shell.
+
+---
+
 ## Updating an installed copy
 
 From the same clone you installed from:
@@ -210,6 +243,7 @@ update.sh                      pull + redeploy an installed copy
 uninstall.sh                   remove it (--purge also drops state)
 shell/                         the Quickshell config → ~/.config/quickshell/expressive/
   shell.qml  config/  components/  services/  modules/  theme/  scripts/
+fish/                          the fish config → ~/.config/fish/
 niri/config.kdl                a complete example niri config with Materiality wired in
 docs/ARCHITECTURE.md           how the shell is put together (config store, managers, niri editor)
 docs/DEPENDENCIES.md           the dependency table again, with the "why" for each

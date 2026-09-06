@@ -9,14 +9,18 @@
 #  whatever package manager it can find, and tells you exactly what to do by
 #  hand when it can't.
 #
-#  Usage:   ./install.sh [options]
-#    --no-packages     don't touch the system package manager at all
-#    --no-fonts        skip downloading the fonts
-#    --no-cursor       skip downloading the Bibata cursor
-#    --niri            also install niri/config.kdl (backs up any existing one)
-#    -y, --yes         assume "yes" to every prompt
-#    --uninstall       run uninstall.sh instead
-#    -h, --help        this text
+#  It also deploys the fish config (kaomoji prompt, clock, cmd/session timers,
+#  palette colours) and makes fish the login shell.
+#
+#  Usage:   ./install.sh [options]        (run --help for the current list)
+#    --no-packages   don't touch the system package manager
+#    --no-fonts      skip the font download
+#    --no-cursor     skip the Bibata download
+#    --no-shell      install the fish config but don't chsh to it
+#    --niri          also install niri/config.kdl (backs up any existing one)
+#    -y, --yes       assume "yes" to every prompt
+#    --update        run update.sh instead
+#    --uninstall     run uninstall.sh instead
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
@@ -39,7 +43,7 @@ CURSOR_SIZE=24
 JBMONO_VER="2.304"
 
 # ---- options -----------------------------------------------------------
-DO_PACKAGES=1 DO_FONTS=1 DO_CURSOR=1 DO_NIRI=0 ASSUME_YES=0
+DO_PACKAGES=1 DO_FONTS=1 DO_CURSOR=1 DO_NIRI=0 DO_SHELL=1 ASSUME_YES=0
 
 # ---- pretty output ---------------------------------------------------------
 if [ -t 1 ]; then
@@ -62,6 +66,7 @@ Materiality — cross-distro installer
     --no-packages   don't touch the system package manager (deps are on you)
     --no-fonts      skip downloading the fonts
     --no-cursor     skip downloading the Bibata cursor
+    --no-shell      install the fish config but don't chsh to it
     --niri          also install niri/config.kdl (backs up any existing one)
     -y, --yes       assume "yes" to every prompt
     --update        run update.sh instead (pull + redeploy)
@@ -69,8 +74,10 @@ Materiality — cross-distro installer
     -h, --help      this text
 
 Installs the shell into ~/.config/quickshell/expressive, symlinks the helper
-scripts into ~/.local/bin, fetches fonts + cursor, and (if you have no niri
-config) installs the example one. Idempotent — safe to re-run.
+scripts into ~/.local/bin, fetches fonts + cursor, deploys the fish config
+(kaomoji prompt, clock, timers, palette colours) and makes fish your login
+shell, and (if you have no niri config) installs the example one.
+Idempotent — safe to re-run.
 EOF
 }
 
@@ -86,6 +93,7 @@ while [ $# -gt 0 ]; do
     --no-packages) DO_PACKAGES=0 ;;
     --no-fonts)    DO_FONTS=0 ;;
     --no-cursor)   DO_CURSOR=0 ;;
+    --no-shell)    DO_SHELL=0 ;;
     --niri)        DO_NIRI=1 ;;
     -y|--yes)      ASSUME_YES=1 ;;
     --update)      shift; exec "$REPO_DIR/update.sh" "$@" ;;
@@ -121,13 +129,13 @@ detect_pm() {
 # only Material Symbols always has to be downloaded.
 pkg_list() {
   case "$PM" in
-    pacman) echo "alacritty python python-pillow wl-clipboard zenity libnotify networkmanager pipewire wireplumber pipewire-pulse brightnessctl power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle ttf-roboto ttf-roboto-mono ttf-jetbrains-mono" ;;
-    dnf)    echo "alacritty python3 python3-pillow wl-clipboard zenity libnotify NetworkManager pipewire wireplumber pipewire-pulseaudio brightnessctl power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle google-roboto-fonts google-roboto-mono-fonts jetbrains-mono-fonts" ;;
-    apt)    echo "alacritty python3 python3-pil wl-clipboard zenity libnotify-bin network-manager pipewire wireplumber pipewire-pulse brightnessctl power-profiles-daemon upower policykit-1-gnome xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle fonts-roboto fonts-jetbrains-mono" ;;
-    zypper) echo "alacritty python3 python3-Pillow wl-clipboard zenity libnotify-tools NetworkManager pipewire wireplumber pipewire-pulseaudio brightnessctl power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle google-roboto-fonts jetbrains-mono-fonts" ;;
-    xbps)   echo "alacritty python3 python3-Pillow wl-clipboard zenity libnotify NetworkManager pipewire wireplumber brightnessctl power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle font-roboto-ttf" ;;
-    apk)    echo "alacritty python3 py3-pillow wl-clipboard zenity libnotify networkmanager pipewire wireplumber brightnessctl power-profiles-daemon upower polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle font-roboto" ;;
-    emerge) echo "gui-apps/alacritty dev-lang/python dev-python/pillow gui-apps/wl-clipboard gnome-extra/zenity x11-libs/libnotify net-misc/networkmanager media-video/pipewire media-video/wireplumber app-misc/brightnessctl sys-apps/power-profiles-daemon sys-power/upower sys-auth/polkit sys-auth/mate-polkit sys-apps/xdg-desktop-portal sys-apps/xdg-desktop-portal-gtk media-libs/fontconfig net-misc/curl app-arch/unzip app-arch/tar x11-misc/gammastep gui-apps/swayidle media-fonts/roboto media-fonts/jetbrains-mono" ;;
+    pacman) echo "fish jq alacritty python python-pillow wl-clipboard zenity libnotify networkmanager pipewire wireplumber pipewire-pulse brightnessctl power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle ttf-roboto ttf-roboto-mono ttf-jetbrains-mono" ;;
+    dnf)    echo "fish jq alacritty python3 python3-pillow wl-clipboard zenity libnotify NetworkManager pipewire wireplumber pipewire-pulseaudio brightnessctl power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle google-roboto-fonts google-roboto-mono-fonts jetbrains-mono-fonts" ;;
+    apt)    echo "fish jq alacritty python3 python3-pil wl-clipboard zenity libnotify-bin network-manager pipewire wireplumber pipewire-pulse brightnessctl power-profiles-daemon upower policykit-1-gnome xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle fonts-roboto fonts-jetbrains-mono" ;;
+    zypper) echo "fish jq alacritty python3 python3-Pillow wl-clipboard zenity libnotify-tools NetworkManager pipewire wireplumber pipewire-pulseaudio brightnessctl power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle google-roboto-fonts jetbrains-mono-fonts" ;;
+    xbps)   echo "fish jq alacritty python3 python3-Pillow wl-clipboard zenity libnotify NetworkManager pipewire wireplumber brightnessctl power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle font-roboto-ttf" ;;
+    apk)    echo "fish jq alacritty python3 py3-pillow wl-clipboard zenity libnotify networkmanager pipewire wireplumber brightnessctl power-profiles-daemon upower polkit xdg-desktop-portal xdg-desktop-portal-gtk fontconfig curl unzip tar gammastep swayidle font-roboto" ;;
+    emerge) echo "app-shells/fish app-misc/jq gui-apps/alacritty dev-lang/python dev-python/pillow gui-apps/wl-clipboard gnome-extra/zenity x11-libs/libnotify net-misc/networkmanager media-video/pipewire media-video/wireplumber app-misc/brightnessctl sys-apps/power-profiles-daemon sys-power/upower sys-auth/polkit sys-auth/mate-polkit sys-apps/xdg-desktop-portal sys-apps/xdg-desktop-portal-gtk media-libs/fontconfig net-misc/curl app-arch/unzip app-arch/tar x11-misc/gammastep gui-apps/swayidle media-fonts/roboto media-fonts/jetbrains-mono" ;;
     *)      echo "" ;;
   esac
 }
@@ -256,6 +264,60 @@ setup_dirs() {
   ok "$STATE_DIR  and  $DATA_DIR/wallpapers"
 }
 
+# Copy the fish config into place. Shared shape with update.sh.
+deploy_fish_config() {
+  local fdst="$XDG_CONFIG_HOME/fish"
+  mkdir -p "$fdst/conf.d" "$fdst/functions"
+  if [ -f "$fdst/config.fish" ] && ! head -1 "$fdst/config.fish" | grep -q 'expressive.*fish shell config'; then
+    cp "$fdst/config.fish" "$fdst/config.fish.bak.$(date +%s)"
+    warn "your existing config.fish was backed up"
+  fi
+  cp -f "$REPO_DIR/fish/config.fish" "$fdst/config.fish"
+  cp -f "$REPO_DIR"/fish/conf.d/*.fish "$fdst/conf.d/"
+  cp -f "$REPO_DIR"/fish/functions/*.fish "$fdst/functions/"
+}
+
+setup_fish() {
+  say "Fish shell  →  $XDG_CONFIG_HOME/fish"
+  if ! command -v fish >/dev/null 2>&1; then
+    warn "fish isn't installed — install it and re-run to get the prompt + login shell."
+    return
+  fi
+  local fishbin; fishbin="$(command -v fish)"
+
+  deploy_fish_config
+  ok "prompt (kaomoji · clock · cmd/session timers) + palette colours installed"
+  command -v jq >/dev/null 2>&1 || warn "jq missing — the prompt won't pick up the Material You colours until it's installed."
+
+  # fish must be a known shell before chsh will take it
+  if ! grep -qxF "$fishbin" /etc/shells 2>/dev/null; then
+    if [ -n "$SUDO" ] && echo "$fishbin" | $SUDO tee -a /etc/shells >/dev/null 2>&1; then
+      ok "registered $fishbin in /etc/shells"
+    else
+      warn "add '$fishbin' to /etc/shells (needs root) for chsh to accept it"
+    fi
+  fi
+
+  if [ "$DO_SHELL" = 0 ]; then
+    info "login shell left as $(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7 || echo "${SHELL:-/bin/sh}")  (--no-shell)"
+    info "run later:  chsh -s $fishbin"
+    return
+  fi
+
+  local cur; cur="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7)"
+  if [ "$cur" = "$fishbin" ]; then
+    ok "login shell already $fishbin"
+  elif ask "make fish your login shell now? (chsh will ask for your password)"; then
+    if chsh -s "$fishbin" 2>/dev/null || { [ -n "$SUDO" ] && $SUDO chsh -s "$fishbin" "$(id -un)" 2>/dev/null; }; then
+      ok "login shell → $fishbin   (new terminals / next login)"
+    else
+      warn "chsh didn't go through — run it yourself:  chsh -s $fishbin"
+    fi
+  else
+    info "skipped; run 'chsh -s $fishbin' whenever you want it"
+  fi
+}
+
 dl() {  # dl <url> <dest>   — quiet, follows redirects, fails loudly
   curl -fsSL --retry 2 --connect-timeout 20 -o "$2" "$1"
 }
@@ -378,6 +440,9 @@ summary() {
    Open settings:   ${B}expressive-settings${RST}   (or Mod+Ctrl+,)
    Pick a wallpaper there — it seeds the whole Material You palette.
 
+   Fish is now your login shell (kaomoji prompt, clock, cmd/session timers,
+   palette-aware colours) — open a new terminal to see it.
+
    Missing something? Re-run this script; it's idempotent.
    Remove everything:   ${B}./uninstall.sh${RST}
 EOF
@@ -399,6 +464,7 @@ main() {
   setup_dirs
   install_fonts
   install_cursor
+  setup_fish
   setup_niri
   summary
 }

@@ -51,6 +51,22 @@ if [ -f "$HOME/.icons/default/index.theme" ] && grep -q "Bibata-Modern-Classic" 
   if ask "reset the default cursor override (~/.icons/default) ?"; then rm -f "$HOME/.icons/default/index.theme"; echo "   ${G}removed${R}"; fi
 fi
 
+# fish config (only ours) + login shell
+FDIR="$XDG_CONFIG_HOME/fish"
+if [ -f "$FDIR/config.fish" ] && head -1 "$FDIR/config.fish" | grep -q 'expressive.*fish shell config'; then
+  if ask "remove the Materiality fish config (~/.config/fish) ?"; then
+    rm -f "$FDIR/config.fish" "$FDIR/conf.d/00-expressive-colors.fish" \
+          "$FDIR"/functions/__e_*.fish "$FDIR"/functions/fish_prompt.fish "$FDIR"/functions/fish_right_prompt.fish
+    echo "   ${G}removed${R}"
+  fi
+fi
+cur_sh="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7)"
+if [ "${cur_sh##*/}" = "fish" ]; then
+  if ask "change your login shell back to bash ?"; then
+    chsh -s /bin/bash 2>/dev/null && echo "   ${G}login shell → /bin/bash${R}" || echo "   ${Y}run: chsh -s /bin/bash${R}"
+  fi
+fi
+
 # state
 if [ "$PURGE" = 1 ]; then
   rm -rf "$XDG_STATE_HOME/$CONF_ID" "$XDG_DATA_HOME/$CONF_ID"

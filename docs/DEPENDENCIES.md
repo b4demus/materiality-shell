@@ -7,7 +7,7 @@ it by hand, or want to know *why* each thing is there.
 
 ### Arch / CachyOS / EndeavourOS
 ```sh
-sudo pacman -S --needed niri alacritty python python-pillow wl-clipboard zenity \
+sudo pacman -S --needed fish jq niri alacritty python python-pillow wl-clipboard zenity \
   libnotify networkmanager pipewire wireplumber pipewire-pulse brightnessctl \
   power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal \
   xdg-desktop-portal-gtk fontconfig ttf-roboto ttf-roboto-mono ttf-jetbrains-mono \
@@ -19,7 +19,7 @@ paru -S quickshell matugen-bin        # or yay
 ```sh
 sudo dnf copr enable errornointernet/quickshell
 sudo dnf copr enable yalter/niri
-sudo dnf install quickshell niri alacritty python3 python3-pillow wl-clipboard \
+sudo dnf install fish jq quickshell niri alacritty python3 python3-pillow wl-clipboard \
   zenity libnotify NetworkManager pipewire wireplumber pipewire-pulseaudio \
   brightnessctl power-profiles-daemon upower polkit mate-polkit \
   xdg-desktop-portal xdg-desktop-portal-gtk fontconfig google-roboto-fonts \
@@ -29,7 +29,7 @@ cargo install matugen --locked        # rustup/cargo needed
 
 ### Debian 13+ / Ubuntu 24.10+
 ```sh
-sudo apt install niri alacritty python3 python3-pil wl-clipboard zenity \
+sudo apt install fish jq niri alacritty python3 python3-pil wl-clipboard zenity \
   libnotify-bin network-manager pipewire wireplumber pipewire-pulse brightnessctl \
   power-profiles-daemon upower policykit-1-gnome xdg-desktop-portal \
   xdg-desktop-portal-gtk fontconfig fonts-roboto fonts-jetbrains-mono \
@@ -40,7 +40,7 @@ sudo apt install niri alacritty python3 python3-pil wl-clipboard zenity \
 
 ### openSUSE Tumbleweed
 ```sh
-sudo zypper install niri alacritty python3 python3-Pillow wl-clipboard zenity \
+sudo zypper install fish jq niri alacritty python3 python3-Pillow wl-clipboard zenity \
   libnotify-tools NetworkManager pipewire wireplumber pipewire-pulseaudio \
   brightnessctl power-profiles-daemon upower polkit mate-polkit \
   xdg-desktop-portal xdg-desktop-portal-gtk fontconfig google-roboto-fonts \
@@ -51,7 +51,7 @@ cargo install matugen --locked
 
 ### Void
 ```sh
-sudo xbps-install -S niri alacritty python3 python3-Pillow wl-clipboard zenity \
+sudo xbps-install -S fish jq niri alacritty python3 python3-Pillow wl-clipboard zenity \
   libnotify NetworkManager pipewire wireplumber brightnessctl \
   power-profiles-daemon upower polkit mate-polkit xdg-desktop-portal \
   xdg-desktop-portal-gtk fontconfig font-roboto-ttf gammastep swayidle
@@ -75,6 +75,16 @@ cd materiality-shell
 | **JetBrains Mono** | the clock, countdowns and calendar numerals (`Appearance.clockFamily`), and Alacritty. | distro package, else JetBrains release zip |
 
 All four live in `~/.local/share/fonts/`. `fc-cache -f` is run after.
+
+## Shell (fish)
+
+`install.sh` installs **fish**, copies `fish/` → `~/.config/fish/` (backing up
+any pre-existing `config.fish`), adds `$(command -v fish)` to `/etc/shells` if
+missing, and runs `chsh -s $(command -v fish)` (asks for your password; skip
+with `--no-shell`). The prompt reads the live palette via **jq** from
+`~/.local/state/expressive/colors.json`. `update.sh` refreshes the fish files
+but never runs `chsh`. `uninstall.sh` offers to remove the config and `chsh`
+back to `/bin/bash`.
 
 ## Cursor
 

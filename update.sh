@@ -125,6 +125,21 @@ for l in "$BIN_DIR"/expressive-*; do
   [ -L "$l" ] && [ ! -e "$l" ] && { rm -f "$l"; info "removed stale link $(basename "$l")"; }
 done
 
+# ---- 3b. fish config -------------------------------------------------------
+if [ -d "$REPO_DIR/fish" ]; then
+  say "Fish config"
+  fdst="$XDG_CONFIG_HOME/fish"
+  if [ -f "$fdst/config.fish" ] && ! head -1 "$fdst/config.fish" | grep -q 'expressive.*fish shell config'; then
+    cp "$fdst/config.fish" "$fdst/config.fish.bak.$(date +%s)"
+    warn "your existing config.fish was backed up"
+  fi
+  mkdir -p "$fdst/conf.d" "$fdst/functions"
+  cp -f "$REPO_DIR/fish/config.fish"        "$fdst/config.fish"
+  cp -f "$REPO_DIR"/fish/conf.d/*.fish      "$fdst/conf.d/"
+  cp -f "$REPO_DIR"/fish/functions/*.fish   "$fdst/functions/"
+  ok "prompt + palette colours refreshed (login shell unchanged)"
+fi
+
 # ---- 4. optional font/cursor refresh -----------------------------------
 if [ "$DO_FONTS" = 1 ]; then
   say "Re-running fonts + cursor"
