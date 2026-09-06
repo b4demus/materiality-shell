@@ -27,19 +27,19 @@ function fish_prompt
     echo ''
 
     # ── line 2: kaomoji · time · arrow ─────────────────────────────────
+    # success → the Material You accent (primary); failure → red
+    set -l mood
     if test $last -eq 0
-        set_color green
+        set -q e_primary; and set mood -o $e_primary; or set mood -o green
     else
-        set_color -o red
+        set mood -o red
     end
+
+    set_color $mood
     echo -n (__e_kaomoji $last)' '
     set_color brblack
     echo -n (date '+%H:%M:%S')' '
-    if test $last -eq 0
-        set_color green
-    else
-        set_color -o red
-    end
+    set_color $mood
     echo -n '❯ '
     set_color normal
 end
