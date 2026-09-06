@@ -8,7 +8,7 @@ import "root:/modules/settings"
 Page {
     id: page
     title: "Bar"
-    subtitle: "Position, shape and contents of the top-level bar. Everything here "
+    subtitle: "Shape and contents of the top bar. Everything here "
               + "is live — the real bar moves as you change it."
     maxWidth: 940
 
@@ -136,26 +136,6 @@ Page {
         width: parent.width
         title: "Placement"
         icon: "open_with"
-
-        MRow {
-            width: parent.width
-            icon: "border_top"
-            title: "Screen edge"
-
-            MSegmented {
-                width: 300
-                model: [
-                    { value: "top",    icon: "vertical_align_top" },
-                    { value: "bottom", icon: "vertical_align_bottom" },
-                    { value: "left",   icon: "align_horizontal_left" },
-                    { value: "right",  icon: "align_horizontal_right" }
-                ]
-                value: Settings.val("bar.position", "top")
-                onPicked: v => Settings.set("bar.position", v)
-            }
-        }
-
-        MDivider { width: parent.width }
 
         MRow {
             width: parent.width
