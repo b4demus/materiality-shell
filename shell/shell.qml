@@ -113,6 +113,7 @@ ShellRoot {
     // ---- global overlays --------------------------------------------
     Osd {}
     MicOsd {}
+    WelcomePill {}
     NotificationLayer {}
     Launcher {}
     ControlCenter {}
